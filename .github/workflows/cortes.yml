@@ -1,0 +1,41 @@
+name: cortes
+on:
+  schedule: [{ cron: '17 * * * *' }]
+  workflow_dispatch:
+    inputs:
+      jogo_re: { description: 'teste com outro jogo', required: false, default: '' }
+concurrency: { group: cortes, cancel-in-progress: false }
+permissions: { contents: read }
+jobs:
+  cortar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      JOGO_RE: ${{ inputs.jogo_re }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: olhar as lives
+        id: olhar
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          for t in 1 2 3; do timeout 300 pip install -q --timeout 60 yt-dlp && break; done
+          printf '%s\n%s\n%s\n' "$R2_ACCESS_KEY_ID" "$R2_SECRET_ACCESS_KEY" "$R2_ENDPOINT" > ~/.r2cred && chmod 600 ~/.r2cred
+          git clone -q --depth 1 https://github.com/radarfreela/render-kit ~/Development/render-kit
+          python3 cortes/esteira.py --listar | tee lista.txt
+          if grep -q ' min de ' lista.txt; then echo "tem=1" >> "$GITHUB_OUTPUT"; fi
+      - name: preparar
+        if: steps.olhar.outputs.tem == '1'
+        run: |
+          for t in 1 2 3; do timeout 300 pip install -q --timeout 60 anthropic faster-whisper numpy && break; done
+          for t in 1 2 3; do timeout 300 sh -c 'sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null' && break; done
+          mkdir -p ~/.fonts && cp fonts/Anton-Regular.ttf ~/.fonts/ && fc-cache -f >/dev/null
+      - name: cortar
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python3 cortes/esteira.py
