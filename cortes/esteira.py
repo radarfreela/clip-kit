@@ -52,7 +52,7 @@ def vods_kick(canal):
         if not uuid: continue
         out.append({'id': 'k' + uuid, 'title': v.get('session_title') or '', 'createdAt': (v.get('created_at') or '').replace(' ', 'T') + 'Z',
                     'lengthSeconds': int((v.get('duration') or 0) / 1000), 'status': 'RECORDING' if v.get('is_live') else 'RECORDED',
-                    'game': {'name': ((v.get('categories') or [{}])[0] or {}).get('name', '')}, 'link': f'https://kick.com/{canal}/videos/{uuid}'})
+                    'game': {'name': ((v.get('categories') or [{}])[0] or {}).get('name', '')}, 'link': v.get('source') or f'https://kick.com/{canal}/videos/{uuid}'})   # 07/11: na nuvem o extrator do Kick dá NOT_FOUND; o m3u8 direto baixa
     return out
 
 def trechos_gta6(vod):
