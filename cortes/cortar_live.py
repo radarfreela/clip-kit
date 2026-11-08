@@ -69,7 +69,7 @@ def _gancho(texto, jogo):
     import anthropic
     r = anthropic.Anthropic(timeout=60, max_retries=1).messages.create(model='claude-sonnet-5-5', max_tokens=400, messages=[{'role': 'user', 'content':
         f'Isto é a fala transcrita de um trecho de live de {jogo} de um streamer brasileiro. Escreva UM gancho para o topo do corte vertical, em português do Brasil, '
-        'maiúsculas, no máximo 7 palavras, sem emoji, sem hashtag, começando direto pela AÇÃO, sem sujeito genérico (nunca "streamer", "gamer", "jogador", "ele"); exemplo bom: "FECHOU O JOGO E ESPEROU O CHAT FALAR"; curioso e fiel ao que ELE FALA no trecho; não invente fato que não está na fala. Responda só o gancho.\n\n' + texto[:4000]}])
+        'maiúsculas, no máximo 7 palavras e SEMPRE uma frase completa (nunca terminar em artigo ou preposição), sem emoji, sem hashtag, começando direto pela AÇÃO, sem sujeito genérico (nunca "streamer", "gamer", "jogador", "ele"); exemplo bom: "FECHOU O JOGO E ESPEROU O CHAT FALAR"; curioso e fiel ao que ELE FALA no trecho; não invente fato que não está na fala. Responda só o gancho.\n\n' + texto[:4000]}])
     txt = ''.join(b.text for b in r.content if getattr(b, 'type', '') == 'text')   # a resposta pode vir com bloco de raciocínio antes do texto
     g = next((l for l in txt.strip().splitlines() if l.strip()), '').strip().strip('"').upper()   # 07/11: veio texto extra numa 2ª linha; só a 1ª vale
     g = re.sub(r'^(O |A )?(STREAMER|GAMER|JOGADOR|JOGADORA|ELE|ELA)\s+', '', g)   # 

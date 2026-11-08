@@ -132,6 +132,7 @@ if __name__ == '__main__':
                 try: g, fala = C.cortar(link, p - C.ANTES, nome, modelo, T, PASTA, jogo)
                 except C.Parado: print(nome, 'tela parada, descartado', flush=True); estado.setdefault('descartados', []).append(nome); r2_put_json(ESTADO, estado); continue
                 except Exception as e: print(nome, 'falhou:', e, flush=True); continue
+                if not g: print(nome, 'sem gancho (fala sem sentido), descartado', flush=True); estado.setdefault('descartados', []).append(nome); r2_put_json(ESTADO, estado); continue   # 08/11: corte sem gancho não serve
                 if len(fala.split()) < 15: print(nome, 'quase sem fala, descartado', flush=True); estado['descartados'].append(nome); r2_put_json(ESTADO, estado); continue   # corte de streamer vive da fala dele
                 ficha = {'id': nome, 'canal': canal, 'vod': v['id'], 'jogo': jogo, 'titulo_live': v['title'], 'inicio_s': p - C.ANTES, 'gancho': g, 'fala': fala[:600],
                          'video': f'{PASTA}/{nome}.mp4', 'legenda': (g.capitalize() + '. ' if g else '') + f'Corte da live do {canal} no {jogo} ' + ('#gta6 #gtavi' if jogo == 'GTA 6' else '#' + re.sub(r'\W', '', jogo.lower())) + f' #cortes #{canal}',
