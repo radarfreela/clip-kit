@@ -60,20 +60,29 @@ def gancho(texto, jogo='GTA 6'):
     # título curto do corte a partir do que foi falado (opcional: sem chave, sai sem gancho)
     if not os.environ.get('ANTHROPIC_API_KEY') or len(texto.split()) < 8: return ''   # trecho sem fala: sem gancho (o 1º teste inventou "não veio transcrição")
     import anthropic
-    for _ in range(2):   # 08/11: 2 cortes saíram sem gancho (resposta vazia); tenta de novo antes de desistir
+    for _ in range(3):   # 08/11: saíram vazios e cortados no meio; 09/11 : gancho é copy de curiosidade, nunca narração do óbvio
       g = _gancho(texto, jogo)
-      if g: return g
-    return ''
+      if g and g.split()[-1] not in SOLTAS and g.split()[0] not in RELATO: return g
+      if g and g.split()[-1] not in SOLTAS: reserva = g
+    return locals().get('reserva', '')   # 3 vezes narração: fica a última inteira (melhor que descartar o corte)
+
+SOLTAS = {'A', 'O', 'AS', 'OS', 'UM', 'UMA', 'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'QUE', 'PARA', 'PRA', 'COM', 'EM', 'NO', 'NA', 'POR', 'AO', 'SEM', 'SE', 'MAS', 'OU'}
+RELATO = {'REAGIU', 'COMENTOU', 'PERGUNTOU', 'FALOU', 'DISSE', 'COMEMOROU', 'ELOGIOU', 'ADMITIU', 'EXPLICOU'}
 
 def _gancho(texto, jogo):
     import anthropic
     r = anthropic.Anthropic(timeout=60, max_retries=1).messages.create(model='claude-sonnet-5-5', max_tokens=400, messages=[{'role': 'user', 'content':
-        f'Isto é a fala transcrita de um trecho de live de {jogo} de um streamer brasileiro. Escreva UM gancho para o topo do corte vertical, em português do Brasil, '
-        'maiúsculas, no máximo 7 palavras e SEMPRE uma frase completa (nunca terminar em artigo ou preposição), sem emoji, sem hashtag, começando direto pela AÇÃO, sem sujeito genérico (nunca "streamer", "gamer", "jogador", "ele"); exemplo bom: "FECHOU O JOGO E ESPEROU O CHAT FALAR"; curioso e fiel ao que ELE FALA no trecho; não invente fato que não está na fala. Responda só o gancho.\n\n' + texto[:4000]}])
+        f'Isto é a fala transcrita (pode ter erro de transcrição) de um trecho de live de {jogo} de um streamer brasileiro. Escreva UM gancho para o topo do corte vertical do TikTok. '
+        'O gancho é COPY, não legenda: tem que gerar CURIOSIDADE e fazer a pessoa ficar até o fim para entender. Nunca descrever o óbvio do que aparece na tela. '
+        'Use um destes dois caminhos: (1) a frase MAIS forte, engraçada ou absurda que ele fala no trecho, quase literal, sem aspas; ou (2) um gancho de loop aberto que promete um desfecho sem entregar '
+        '(ex.: "CRAVOU O PRÓXIMO GOL… E OLHA NO QUE DEU", "O QUE ESSE JUIZ FEZ NÃO TEM EXPLICAÇÃO", "O CHAT NÃO ACREDITOU NESSA JOGADA", "ELE AVISOU QUE IA DAR RUIM"). '
+        'PROIBIDO começar narrando com verbo de relatório: REAGIU, COMENTOU, PERGUNTOU, FALOU, DISSE, COMEMOROU, ELOGIOU, ADMITIU, EXPLICOU. Nunca "streamer", "gamer", "jogador". '
+        'Regras: português do Brasil, maiúsculas, de 4 a 9 palavras, frase COMPLETA (nunca terminar em artigo ou preposição), sem aspas, sem emoji, sem hashtag; '
+        'fiel ao trecho: não invente fato que não está na fala. Responda só o gancho.\n\n' + texto[:4000]}])
     txt = ''.join(b.text for b in r.content if getattr(b, 'type', '') == 'text')   # a resposta pode vir com bloco de raciocínio antes do texto
-    g = next((l for l in txt.strip().splitlines() if l.strip()), '').strip().strip('"').upper()   # 07/11: veio texto extra numa 2ª linha; só a 1ª vale
-    g = re.sub(r'^(O |A )?(STREAMER|GAMER|JOGADOR|JOGADORA|ELE|ELA)\s+', '', g)   # 
-    return g[:60]
+    g = next((l for l in txt.strip().splitlines() if l.strip()), '').strip().replace('"', '').replace('“', '').replace('”', '').upper()   # 07/11: veio texto extra numa 2ª linha; só a 1ª vale
+    g = re.sub(r'^(O |A )?(STREAMER|GAMER|JOGADOR|JOGADORA)\s+', '', g)   # 
+    return g[:70]
 
 
 class Parado(Exception): pass
