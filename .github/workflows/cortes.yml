@@ -15,7 +15,7 @@ permissions: { contents: read }
 jobs:
   cortar:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: ${{ inputs.palavra != '' && 170 || 55 }}
     env:
       JOGO_RE: ${{ inputs.jogo_re }}
       R2_BUCKET: ${{ secrets.R2_BUCKET }}

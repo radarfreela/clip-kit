@@ -114,7 +114,7 @@ def busca_palavra():
         arq = next(f'{T}/{f}' for f in os.listdir(T) if f.startswith('audio.'))
         pcm = np.frombuffer(subprocess.run(['ffmpeg', '-v', 'error', '-i', arq, '-ac', '1', '-ar', '16000', '-f', 's16le', '-'], capture_output=True, check=True).stdout, dtype=np.int16).astype(np.float32) / 32768
         print(canal, vod, f'{len(pcm) / 16000 / 60:.0f} min de áudio; procurando', pal.pattern, flush=True)
-        segs, _ = WhisperModel('base', device='cpu', compute_type='int8').transcribe(pcm, language='pt', vad_filter=True, initial_prompt='Neymar, Kings League, gol, pênalti')
+        segs, _ = WhisperModel('tiny', device='cpu', compute_type='int8', cpu_threads=os.cpu_count() or 4).transcribe(pcm, language='pt', vad_filter=True, beam_size=1, initial_prompt='Neymar, Kings League, gol, pênalti')   # 10/11: 'base' passou de 45 min em 3 h de live
         ts = [s.start for s in segs if pal.search(s.text)]; del pcm
         print('menções:', [int(t) for t in ts], flush=True)
         dens = sorted(ts, key=lambda t: -sum(abs(t - u) <= 60 for u in ts))   # onde mais se fala dele primeiro
