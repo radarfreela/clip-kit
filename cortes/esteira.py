@@ -101,6 +101,42 @@ def candidatos(estado):
     fresco = lambda v: (lambda h: 1 if h < 24 else 0.7 if h < 48 else 0.5)((agora - datetime.datetime.fromisoformat(v['createdAt'].replace('Z', '+00:00'))).total_seconds() / 3600)
     return sorted(out, key=lambda x: (x[2] != 'GTA 6', -peso.get(x[0], 0) * fresco(x[1])))   # GTA 6 sempre primeiro
 
+def busca_palavra():
+    """09/11: corta os momentos em que a live fala uma palavra (ex.: Neymar). Entradas: PALAVRA (regex), VOD (id da Twitch), CANAL, JOGO_NOME, TAGS, N."""
+    pal = re.compile(os.environ['PALAVRA'], re.I); vod = os.environ['VOD'].rstrip('/').split('/')[-1]; canal = os.environ.get('CANAL') or 'live'
+    jogo = os.environ.get('JOGO_NOME') or 'Kings League'; tags = os.environ.get('TAGS') or ''; n = int(os.environ.get('N') or 6)
+    link = f'https://www.twitch.tv/videos/{vod}'
+    from faster_whisper import WhisperModel
+    import numpy as np
+    indice = r2_json(f'{PASTA}/indice.json', [])
+    with tempfile.TemporaryDirectory() as T:
+        C.sh('yt-dlp', '-q', '--no-warnings', '-N', '8', '-f', 'ba/Audio_Only/worst', '-o', f'{T}/audio.%(ext)s', link, capture_output=True, text=True)
+        arq = next(f'{T}/{f}' for f in os.listdir(T) if f.startswith('audio.'))
+        pcm = np.frombuffer(subprocess.run(['ffmpeg', '-v', 'error', '-i', arq, '-ac', '1', '-ar', '16000', '-f', 's16le', '-'], capture_output=True, check=True).stdout, dtype=np.int16).astype(np.float32) / 32768
+        print(canal, vod, f'{len(pcm) / 16000 / 60:.0f} min de áudio; procurando', pal.pattern, flush=True)
+        segs, _ = WhisperModel('base', device='cpu', compute_type='int8').transcribe(pcm, language='pt', vad_filter=True, initial_prompt='Neymar, Kings League, gol, pênalti')
+        ts = [s.start for s in segs if pal.search(s.text)]; del pcm
+        print('menções:', [int(t) for t in ts], flush=True)
+        dens = sorted(ts, key=lambda t: -sum(abs(t - u) <= 60 for u in ts))   # onde mais se fala dele primeiro
+        escolhidos = []
+        for t in dens:
+            if all(abs(t - e) >= C.DUR for e in escolhidos): escolhidos.append(t)
+            if len(escolhidos) >= n: break
+        modelo = WhisperModel('small', device='cpu', compute_type='int8')
+        for t in sorted(escolhidos):
+            a = max(0, int(t) - 25); nome = f'{canal}-{vod}-p{a}'
+            if any(x['id'] == nome for x in indice): continue
+            try: g, fala = C.cortar(link, a, nome, modelo, T, PASTA, jogo)
+            except Exception as e: print(nome, 'falhou:', e, flush=True); continue
+            if not g: print(nome, 'sem gancho, descartado', flush=True); continue
+            ficha = {'id': nome, 'canal': canal, 'vod': vod, 'jogo': jogo, 'titulo_live': os.environ.get('TITULO', ''), 'inicio_s': a, 'gancho': g, 'fala': fala[:600],
+                     'video': f'{PASTA}/{nome}.mp4', 'legenda': f'{g.capitalize()}. Corte da live do {canal} na {jogo} {tags} #cortes #{canal}'.replace('  ', ' '),
+                     'criado': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'), 'estado': 'novo'}
+            indice.append(ficha); r2_put_json(f'{PASTA}/indice.json', indice); print('corte pronto:', nome, '|', g, flush=True)
+
+if __name__ == '__main__' and os.environ.get('PALAVRA'):
+    busca_palavra(); sys.exit(0)
+
 if __name__ == '__main__':
     estado = r2_json(ESTADO, {'vistos': {}})
     cand = candidatos(estado)
