@@ -134,6 +134,30 @@ def busca_palavra():
                      'criado': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'), 'estado': 'novo'}
             indice.append(ficha); r2_put_json(f'{PASTA}/indice.json', indice); print('corte pronto:', nome, '|', g, flush=True)
 
+def montar_manual():
+    """10/11: corte preparado à mão (ex.: trecho do YouTube, que não baixa na nuvem): cru.mp4 + legenda.ass + g0..g2.txt em gta/manual/<MANUAL>/; aqui só monta e indexa."""
+    nome = os.environ['MANUAL']; base = f'gta/manual/{nome}'; indice = r2_json(f'{PASTA}/indice.json', [])
+    with tempfile.TemporaryDirectory() as T:
+        C.sh('sh', C.R2, 'get', f'{base}/cru.mp4', f'{T}/cru.mp4'); C.sh('sh', C.R2, 'get', f'{base}/legenda.ass', f'{T}/l.ass')
+        topo, g = '', []
+        for k in range(3):
+            if subprocess.run(['sh', C.R2, 'get', f'{base}/g{k}.txt', f'{T}/g{k}.txt'], capture_output=True).returncode: break
+            g.append(open(f'{T}/g{k}.txt').read().strip())
+            topo += f"drawtext=fontfile='{C.FONTE}':textfile='{T}/g{k}.txt':fontsize=74:fontcolor=white:borderw=6:bordercolor=black:y_align=font:x=(w-tw)/2:y={300 + k * 92},"
+        C.sh('ffmpeg', '-v', 'error', '-y', '-i', f'{T}/cru.mp4', '-filter_complex',
+             f"[0:v]split[a][b];[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=8:2,eq=brightness=-0.15,scale={C.W}:{C.H}[f];"
+             f"[b]scale={C.W}:-2[j];[f][j]overlay=0:(H-h)/2,{topo}subtitles='{T}/l.ass':fontsdir='{os.path.dirname(C.FONTE)}',format=yuv420p[v]",
+             '-map', '[v]', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', f'{T}/{nome}.mp4', timeout=900)
+        C.sh('sh', C.R2, 'put', f'{T}/{nome}.mp4', f'{PASTA}/{nome}.mp4')
+    gancho = ' '.join(g)
+    ficha = {'id': nome, 'canal': os.environ.get('CANAL') or 'live', 'vod': '', 'jogo': os.environ.get('JOGO_NOME') or '', 'titulo_live': os.environ.get('TITULO', ''), 'inicio_s': 0,
+             'gancho': gancho, 'fala': '', 'video': f'{PASTA}/{nome}.mp4', 'legenda': f"{gancho.capitalize()} {os.environ.get('TAGS', '')}".strip(),
+             'criado': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'), 'estado': 'novo'}
+    indice = [x for x in indice if x['id'] != nome] + [ficha]; r2_put_json(f'{PASTA}/indice.json', indice); print('corte pronto:', nome, '|', gancho, flush=True)
+
+if __name__ == '__main__' and os.environ.get('MANUAL'):
+    montar_manual(); sys.exit(0)
+
 if __name__ == '__main__' and os.environ.get('PALAVRA'):
     busca_palavra(); sys.exit(0)
 
