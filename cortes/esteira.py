@@ -19,9 +19,9 @@ CANAIS = {'alanzoka': 8.15, 'gaules': 4.31, 'nobru': 3.79, 'paulinholokobr': 3.7
 KICK = {'coringa': 7.27, 'jukes': 1.85, 'bistecone': 9.5}   # Kick (coringa e jukes saíram da Twitch); peso = tamanho do público dele
 # 
 CANAIS['paulinholokobr'] = 9.0
+TESTE = os.environ.get('JOGO_RE')   # só para testar antes do lançamento (19/11) com outro jogo; tudo vai para gta/teste/
 # 
 SO_GTA = not TESTE
-TESTE = os.environ.get('JOGO_RE')   # só para testar antes do lançamento (19/11) com outro jogo; tudo vai para gta/teste/
 GTA6 = re.compile(TESTE or r'grand theft auto vi\b|\bgta\s*(6|vi)\b', re.I)
 RP = re.compile(r'\brp\b|role\s*play|cidade alta|complexo|nopixel|fivem|\bgta\s*(5|v)\b|grand theft auto v\b', re.I)
 PASTA = 'gta/teste' if TESTE else 'gta/cortes'; ESTADO = 'gta/estado-teste.json' if TESTE else 'gta/estado.json'
