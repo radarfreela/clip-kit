@@ -45,8 +45,12 @@ def r2_put_json(chave, obj):
         json.dump(obj, open(f'{d}/x.json', 'w'), ensure_ascii=False, indent=1); C.sh('sh', C.R2, 'put', f'{d}/x.json', chave, capture_output=True)
 
 def vods(canal):
-    u = gql('{user(login:"%s"){videos(first:5,type:ARCHIVE,sort:TIME){edges{node{id title createdAt lengthSeconds status game{name}}}}}}' % canal)['user']
-    return [e['node'] for e in (u or {}).get('videos', {}).get('edges', [])]
+    # 17/11: na nuvem a Twitch às vezes devolve 'videos' vazio (alanzoka, gaules); tenta de novo antes de desistir do canal nesta rodada
+    for k in range(3):
+        u = gql('{user(login:"%s"){videos(first:5,type:ARCHIVE,sort:TIME){edges{node{id title createdAt lengthSeconds status game{name}}}}}}' % canal)['user']
+        if u and u.get('videos'): return [e['node'] for e in u['videos'].get('edges') or []]
+        time.sleep(3 + 5 * k)
+    raise RuntimeError('Twitch não respondeu a lista de vídeos')
 
 def vods_kick(canal):
     r = urllib.request.Request(f'https://kick.com/api/v2/channels/{canal}/videos', headers={'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'})
