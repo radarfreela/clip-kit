@@ -1,12 +1,14 @@
 # Cortador de live (teste 07/11, .
 # Live gravada do YouTube → picos do chat (a plateia vota) → baixa só esses trechos → fala transcrita palavra por palavra (Whisper)
-# → corte vertical de ~65 s (jogo no meio, fundo desfocado, gancho no topo, legenda palavra por palavra) → R2 /cortes-teste/.
+# → corte vertical de ~30 s (jogo no meio, fundo desfocado, gancho no topo, legenda palavra por palavra) → R2 /cortes-teste/.
 #   python3 cortar_live.py <link da live> [quantos cortes]
 import json, os, re, subprocess, sys, tempfile, collections
 R2 = os.path.expanduser('~/Development/render-kit/r2.sh')
 os.environ.setdefault('R2_CRED_FILE', os.path.expanduser('~/.r2cred'))
 FONTE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'fonts', 'Anton-Regular.ttf')
-W, H, DUR, ANTES = 1080, 1920, 65, 50   # o chat reage ~10–20 s depois do lance: o corte começa 50 s antes do pico
+# : começavam 50 s antes do lance, gente passava o dedo.
+# Agora 30 s começando perto do lance: no pico de VOLUME (grito/risada do streamer) o corte começa 10 s antes; no pico de CHAT, 25 s (o chat reage ~10–20 s depois)
+W, H, DUR, ANTES, ANTES_SOM = 1080, 1920, 30, 25, 10
 def sh(*a, **k): return subprocess.run([str(x) for x in a], check=True, **k)
 
 def picos(chat, n):
@@ -36,9 +38,9 @@ def picos_som(link, T, n, faixas=None):
     rms = np.sqrt(np.mean(x[: len(x) // 80000 * 80000].reshape(-1, 80000) ** 2, axis=1))   # 10 s por bloco
     base = np.convolve(rms, np.ones(30) / 30, 'same') + 1   # comparado com os 5 min em volta (não premia trecho só com música alta)
     nota = rms / base; out = []
-    dentro = lambda b: faixas is None or any(i + ANTES <= b * 10 <= f - (DUR - ANTES) for i, f in faixas)   # o corte inteiro cai dentro do trecho de GTA 6
+    dentro = lambda b: faixas is None or any(i + ANTES_SOM <= b * 10 <= f - (DUR - ANTES_SOM) for i, f in faixas)   # o corte inteiro cai dentro do trecho de GTA 6
     for b in np.argsort(-nota):
-        if all(abs(int(b) - o) * 10 >= 240 for o in out) and b * 10 > ANTES and dentro(int(b)): out.append(int(b))
+        if all(abs(int(b) - o) * 10 >= 120 for o in out) and b * 10 > ANTES_SOM and dentro(int(b)): out.append(int(b))   # cortes curtos: picos a 2 min um do outro
         if len(out) == n: break
     return [(b * 10, round(float(nota[b]), 2)) for b in out]
 

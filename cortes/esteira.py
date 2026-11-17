@@ -183,7 +183,7 @@ if __name__ == '__main__':
     cortadas = 0
     for canal, v, jogo, tr, total in cand:
         if cortadas >= MAX_VODS: break
-        link = v.get('link') or f"https://www.twitch.tv/videos/{v['id']}"; n = max(1, min(4, total // (45 * 60)))   # ~1 corte a cada 45 min de jogo
+        link = v.get('link') or f"https://www.twitch.tv/videos/{v['id']}"; n = max(1, min(8, total // (20 * 60)))   # 17/11: cortes de 30 s → ~1 a cada 20 min de jogo, até 8 por live
         with tempfile.TemporaryDirectory() as T:
             # sobra de picos: os de tela parada são pulados. 07/11: VOD que não baixa (felps) não derruba a rodada; passa para a próxima live
             try: ps = C.picos_som(link, T, n * 3, faixas=tr)
@@ -195,12 +195,12 @@ if __name__ == '__main__':
                 if feitos >= n: break
                 nome = f"{canal}-{v['id']}-{i + 1}"
                 if any(x['id'] == nome for x in indice) or nome in estado.setdefault('descartados', []): continue
-                try: g, fala = C.cortar(link, p - C.ANTES, nome, modelo, T, PASTA, jogo)
+                try: g, fala = C.cortar(link, p - C.ANTES_SOM, nome, modelo, T, PASTA, jogo)
                 except C.Parado: print(nome, 'tela parada, descartado', flush=True); estado.setdefault('descartados', []).append(nome); r2_put_json(ESTADO, estado); continue
                 except Exception as e: print(nome, 'falhou:', e, flush=True); continue
                 if not g: print(nome, 'sem gancho (fala sem sentido), descartado', flush=True); estado.setdefault('descartados', []).append(nome); r2_put_json(ESTADO, estado); continue   # 08/11: corte sem gancho não serve
                 if len(fala.split()) < 15: print(nome, 'quase sem fala, descartado', flush=True); estado['descartados'].append(nome); r2_put_json(ESTADO, estado); continue   # corte de streamer vive da fala dele
-                ficha = {'id': nome, 'canal': canal, 'vod': v['id'], 'jogo': jogo, 'titulo_live': v['title'], 'inicio_s': p - C.ANTES, 'gancho': g, 'fala': fala[:600],
+                ficha = {'id': nome, 'canal': canal, 'vod': v['id'], 'jogo': jogo, 'titulo_live': v['title'], 'inicio_s': p - C.ANTES_SOM, 'gancho': g, 'fala': fala[:600],
                          'video': f'{PASTA}/{nome}.mp4', 'legenda': (g.capitalize() + '. ' if g else '') + f'Corte da live do {canal} no {jogo} ' + ('#gta6 #gtavi' if jogo == 'GTA 6' else '#' + re.sub(r'\W', '', jogo.lower())) + f' #cortes #{canal}',
                          'criado': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'), 'estado': 'novo'}
                 feitos += 1; indice.append(ficha); r2_put_json(f'{PASTA}/indice.json', indice); print('corte pronto:', nome, flush=True)
