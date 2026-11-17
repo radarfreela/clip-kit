@@ -222,7 +222,7 @@ if __name__ == '__main__':
                          'criado': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'), 'estado': 'novo'}
                 feitos += 1; indice.append(ficha); r2_put_json(f'{PASTA}/indice.json', indice); print('corte pronto:', nome, flush=True)
                 if jogo == 'GTA 6' and not TESTE:   # : vai direto para Aprovados na página
-                    agora = datetime.datetime.now(datetime.timezone.utc).isoformat(); r2_put_json(f'{PASTA}/estado/{nome}.json', {'estado': 'aprovado', 'aprovado_em': agora, 'motivo': 'automático: 
+                    agora = datetime.datetime.now(datetime.timezone.utc).isoformat(); r2_put_json(f'{PASTA}/estado/{nome}.json', {'estado': 'aprovado', 'aprovado_em': agora, 'motivo': 'aprovado automaticamente (regra de 17/11)'})
         if v.get('ao_vivo'): estado.setdefault('parciais', {})[v['id']] = max(b for a, b in tr); print(canal, v['id'], 'ao vivo: olhado até', estado['parciais'][v['id']] // 60, 'min', flush=True)
         else: estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'cortado', 'em': time.strftime('%Y-%m-%d %H:%M')}
         cortadas += 1
