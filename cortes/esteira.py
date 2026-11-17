@@ -27,7 +27,7 @@ RP = re.compile(r'\brp\b|role\s*play|cidade alta|complexo|nopixel|fivem|\bgta\s*
 PASTA = 'gta/teste' if TESTE else 'gta/cortes'; ESTADO = 'gta/estado-teste.json' if TESTE else 'gta/estado.json'
 NAO_JOGO = re.compile(r'just chatting|conversando|music|música|special events|talk shows|pools|asmr|art\b|software|travel|food|sports|irl|slots|virtual casino', re.I)
 ESTOQUE_MAX = 100                      # cortes feitos nos últimos 4 dias: acima disso a rodada não corta (economiza minutos do GitHub)
-MAX_VODS, IDADE_MAX_H = 1, 72          # por rodada (o job tem 60 min); live mais velha que 3 dias não vale mais a pena
+MAX_VODS, IDADE_MAX_H = 2, 72          # por rodada (o job tem 60 min); live mais velha que 3 dias não vale mais a pena
 MIN_GTA_S = 20 * 60                    # trecho de GTA 6 com menos de 20 min não rende corte bom
 GQL = 'https://gql.twitch.tv/gql'; CID = 'kimne78kx3ncx6brgo4mv6wki5h1ko'   # cliente público do site da Twitch (o mesmo que o yt-dlp usa)
 
@@ -77,8 +77,10 @@ def trechos_gta6(vod):
     for c in caps:
         j = (c.get('title') or '').strip()
         if j and not RP.search(j) and not NAO_JOGO.search(j): jogos.setdefault(j, []).append((int(c['start_time']), int(c['end_time'])))
-    if not jogos: return ('', [])
     gta = [j for j in jogos if GTA6.search(j)]
+    if not gta and not TESTE and GTA6.search(vod.get('title') or '') and not RP.search(vod.get('title') or ''):   # 17/11: categoria errada, título diz GTA 6
+        return ('GTA 6', [(0, vod['lengthSeconds'])])
+    if not jogos: return ('', [])
     if TESTE and not gta: return ('', [])
     j = gta[0] if gta else max(jogos, key=lambda k: sum(f - i for i, f in jogos[k]))
     return ('GTA 6' if gta and not TESTE else j, jogos[j])
@@ -89,7 +91,12 @@ def candidatos(estado):
         try: lista = vods_kick(canal) if canal in KICK else vods(canal)
         except Exception as e: print(canal, 'erro na Twitch:', e, flush=True); continue
         for v in lista:
-            if v['id'] in estado['vistos'] or v['status'] != 'RECORDED': continue   # RECORDING = live ainda no ar
+            if v['id'] in estado['vistos']: continue
+            # : live AINDA NO AR (Twitch) também é cortada,
+            # voltando nela a cada rodada a partir de onde parou (estado['parciais'][vod] = segundo já olhado). Kick só depois que acaba.
+            ao_vivo = v['status'] == 'RECORDING'
+            if ao_vivo and (canal in KICK or v.get('link')): continue
+            if v['status'] not in ('RECORDED', 'RECORDING'): continue
             idade = (agora - datetime.datetime.fromisoformat(v['createdAt'].replace('Z', '+00:00'))).total_seconds() / 3600
             if idade > IDADE_MAX_H and not TESTE: continue
             if re.search(r'\brerun\b|reprise', v['title'], re.I): estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'reprise'}; continue
@@ -98,9 +105,15 @@ def candidatos(estado):
             except Exception as e: print(canal, v['id'], 'sem capítulos:', e, flush=True); continue
             if r is None: estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'VOD só para inscritos'}; continue
             jogo, tr = r
+            if ao_vivo and jogo != 'GTA 6' and not TESTE: continue   # live no ar: só vale a pena voltar nela se for GTA 6 (e não marca como vista)
+            ini = estado.setdefault('parciais', {}).get(v['id'], 0)
+            if ini: tr = [(max(a, ini), b) for a, b in tr if b > ini + 60]
+            if ao_vivo: tr = [(a, min(b, v['lengthSeconds'] - 30)) for a, b in tr if min(b, v['lengthSeconds'] - 30) - a > 120]
+            v['ao_vivo'] = ao_vivo
             if SO_GTA and jogo != 'GTA 6': estado['vistos'][v['id']] = {'canal': canal, 'motivo': f'não é GTA 6 ({jogo or "conversa"})'}; continue
             total = sum(f - i for i, f in tr)
-            if total < MIN_GTA_S: estado['vistos'][v['id']] = {'canal': canal, 'motivo': f'jogo só {total // 60} min'}; continue
+            if ao_vivo and total < 15 * 60: continue   # espera juntar 15 min novos de GTA 6
+            if total < MIN_GTA_S and not ini: estado['vistos'][v['id']] = {'canal': canal, 'motivo': f'jogo só {total // 60} min'}; continue
             out.append((canal, v, jogo, tr, total))
     peso = {**CANAIS, **KICK}
     # 
@@ -183,7 +196,7 @@ if __name__ == '__main__':
     cortadas = 0
     for canal, v, jogo, tr, total in cand:
         if cortadas >= MAX_VODS: break
-        link = v.get('link') or f"https://www.twitch.tv/videos/{v['id']}"; n = max(1, min(8, total // (20 * 60)))   # 17/11: cortes de 30 s → ~1 a cada 20 min de jogo, até 8 por live
+        link = v.get('link') or f"https://www.twitch.tv/videos/{v['id']}"; n = max(1, min(8, total // (15 * 60 if v.get('ao_vivo') else 20 * 60)))   # 17/11: cortes de 30 s → ~1 a cada 20 min de jogo, até 8 por live
         with tempfile.TemporaryDirectory() as T:
             # sobra de picos: os de tela parada são pulados. 07/11: VOD que não baixa (felps) não derruba a rodada; passa para a próxima live
             try: ps = C.picos_som(link, T, n * 3, faixas=tr)
@@ -193,7 +206,7 @@ if __name__ == '__main__':
             feitos = 0; print(canal, v['id'], 'picos:', ps, flush=True)
             for i, (p, peso) in enumerate(ps):
                 if feitos >= n: break
-                nome = f"{canal}-{v['id']}-{i + 1}"
+                nome = f"{canal}-{v['id']}-{int(p)}"   # 17/11: pelo segundo do lance (a mesma live é revisitada; número de ordem repetia)
                 if any(x['id'] == nome for x in indice) or nome in estado.setdefault('descartados', []): continue
                 try: g, fala = C.cortar(link, p - C.ANTES_SOM, nome, modelo, T, PASTA, jogo)
                 except C.Parado: print(nome, 'tela parada, descartado', flush=True); estado.setdefault('descartados', []).append(nome); r2_put_json(ESTADO, estado); continue
@@ -204,6 +217,8 @@ if __name__ == '__main__':
                          'video': f'{PASTA}/{nome}.mp4', 'legenda': (g.capitalize() + '. ' if g else '') + f'Corte da live do {canal} no {jogo} ' + ('#gta6 #gtavi' if jogo == 'GTA 6' else '#' + re.sub(r'\W', '', jogo.lower())) + f' #cortes #{canal}',
                          'criado': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'), 'estado': 'novo'}
                 feitos += 1; indice.append(ficha); r2_put_json(f'{PASTA}/indice.json', indice); print('corte pronto:', nome, flush=True)
-        estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'cortado', 'em': time.strftime('%Y-%m-%d %H:%M')}; cortadas += 1
+        if v.get('ao_vivo'): estado.setdefault('parciais', {})[v['id']] = max(b for a, b in tr); print(canal, v['id'], 'ao vivo: olhado até', estado['parciais'][v['id']] // 60, 'min', flush=True)
+        else: estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'cortado', 'em': time.strftime('%Y-%m-%d %H:%M')}
+        cortadas += 1
         r2_put_json(ESTADO, estado)
     r2_put_json(ESTADO, estado)
