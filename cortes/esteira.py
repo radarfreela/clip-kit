@@ -16,7 +16,11 @@ import cortar_live as C
 # Fora: felps ; cellbit (VOD só para inscritos); bistecone e casimiro (sem VOD na Twitch nem no Kick; estão no YouTube, que bloqueia download na nuvem).
 CANAIS = {'alanzoka': 8.15, 'gaules': 4.31, 'nobru': 3.79, 'paulinholokobr': 3.71, 'yoda': 2.46, 'luquet4': 2.04, 'rakin': 1.69, 'brino': 1.63,
           'mount': 1.26, 'smzinho': 1.17, 'jovirone': 1.16, 'baiano': 1.06, 'piuzinho': 0.85, 'gordox': 0.58}   # Twitch, milhões
-KICK = {'coringa': 7.27, 'jukes': 1.85}   # Kick (coringa e jukes saíram da Twitch); peso = tamanho do público dele
+KICK = {'coringa': 7.27, 'jukes': 1.85, 'bistecone': 9.5}   # Kick (coringa e jukes saíram da Twitch); peso = tamanho do público dele
+# 
+CANAIS['paulinholokobr'] = 9.0
+#  em diante, nenhum outro jogo é cortado
+SO_GTA = datetime.date.today() >= datetime.date(2026, 11, 19) and not TESTE
 TESTE = os.environ.get('JOGO_RE')   # só para testar antes do lançamento (19/11) com outro jogo; tudo vai para gta/teste/
 GTA6 = re.compile(TESTE or r'grand theft auto vi\b|\bgta\s*(6|vi)\b', re.I)
 RP = re.compile(r'\brp\b|role\s*play|cidade alta|complexo|nopixel|fivem|\bgta\s*(5|v)\b|grand theft auto v\b', re.I)
@@ -61,6 +65,7 @@ def trechos_gta6(vod):
     link = vod.get('link') or f"https://www.twitch.tv/videos/{vod['id']}"
     if vod.get('link'):   # Kick: um jogo por live, sem capítulos
         j = (vod.get('game') or {}).get('name', '')
+        if GTA6.search(vod.get('title') or '') and not RP.search(vod.get('title') or ''): j = 'GTA 6'   # 17/11: Bistecone joga com a categoria 'Just Chatting'; o título diz o jogo
         if not j or RP.search(j) or NAO_JOGO.search(j) or (TESTE and not GTA6.search(j)): return ('', [])
         return ('GTA 6' if GTA6.search(j) and not TESTE else j, [(0, vod['lengthSeconds'])])
     r = subprocess.run(['yt-dlp', '-J', '--skip-download', '--no-warnings', link], capture_output=True, text=True, timeout=120)
@@ -93,6 +98,7 @@ def candidatos(estado):
             except Exception as e: print(canal, v['id'], 'sem capítulos:', e, flush=True); continue
             if r is None: estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'VOD só para inscritos'}; continue
             jogo, tr = r
+            if SO_GTA and jogo != 'GTA 6': estado['vistos'][v['id']] = {'canal': canal, 'motivo': f'não é GTA 6 ({jogo or "conversa"})'}; continue
             total = sum(f - i for i, f in tr)
             if total < MIN_GTA_S: estado['vistos'][v['id']] = {'canal': canal, 'motivo': f'jogo só {total // 60} min'}; continue
             out.append((canal, v, jogo, tr, total))
