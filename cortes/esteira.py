@@ -16,14 +16,14 @@ import cortar_live as C
 # Fora: felps ; cellbit (VOD só para inscritos); bistecone e casimiro (sem VOD na Twitch nem no Kick; estão no YouTube, que bloqueia download na nuvem).
 CANAIS = {'alanzoka': 8.15, 'gaules': 4.31, 'nobru': 3.79, 'paulinholokobr': 3.71, 'yoda': 2.46, 'luquet4': 2.04, 'rakin': 1.69, 'brino': 1.63,
           'mount': 1.26, 'smzinho': 1.17, 'jovirone': 1.16, 'baiano': 1.06, 'piuzinho': 0.85, 'gordox': 0.58}   # Twitch, milhões
-KICK = {'coringa': 7.27, 'jukes': 1.85, 'bistecone': 9.5}   # Kick (coringa e jukes saíram da Twitch); peso = tamanho do público dele
+KICK = {'coringa': 7.27, 'jukes': 1.85, 'bistecone': 9.5, 'davyjones': 1.35}   # Kick (coringa e jukes saíram da Twitch); peso = tamanho do público dele
 # 
 CANAIS['paulinholokobr'] = 9.0
 TESTE = os.environ.get('JOGO_RE')   # só para testar antes do lançamento (19/11) com outro jogo; tudo vai para gta/teste/
 # 
 SO_GTA = not TESTE
 GTA6 = re.compile(TESTE or r'grand theft auto vi\b|\bgta\s*(6|vi)\b', re.I)
-ESPERA = re.compile(r'amanh|antes d|[uú]ltimo dia|falta|contagem|esperando|ansios|lan[cç]amento|trailer|react', re.I)   # 17/11: falar DO GTA 6 ≠ jogar
+ESPERA = re.compile(r'amanh|antes d|[uú]ltimo dia|falta|chegando|contagem|esperando|ansios|lan[cç]amento|trailer|react', re.I)   # 17/11: falar DO GTA 6 ≠ jogar
 JOGANDO = re.compile(r'jogando|gameplay|zerando|joguei|playthrough|ao vivo no gta|primeira vez', re.I)
 RP = re.compile(r'\brp\b|role\s*play|cidade alta|complexo|nopixel|fivem|\bgta\s*(5|v)\b|grand theft auto v\b', re.I)
 PASTA = 'gta/teste' if TESTE else 'gta/cortes'; ESTADO = 'gta/estado-teste.json' if TESTE else 'gta/estado.json'
