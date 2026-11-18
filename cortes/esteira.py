@@ -203,7 +203,7 @@ if __name__ == '__main__':
     lim = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=4)).isoformat()
     estoque = sum((x.get('criado') or '') > lim for x in indice)
     if estoque >= ESTOQUE_MAX and not (cand[0][2] == 'GTA 6'): r2_put_json(ESTADO, estado); print(f'estoque cheio ({estoque} cortes esperando postagem)'); sys.exit(0)
-    cortadas = 0
+    cortadas = 0; total_rodada = 0   # 17/11: 16 cortes levaram 53 min (o job tem 55): no máximo 12 por rodada
     for canal, v, jogo, tr, total in cand:
         if cortadas >= MAX_VODS: break
         link = v.get('link') or f"https://www.twitch.tv/videos/{v['id']}"; n = max(1, min(8, total // (15 * 60 if v.get('ao_vivo') else 20 * 60)))   # 17/11: cortes de 30 s → ~1 a cada 20 min de jogo, até 8 por live
@@ -215,7 +215,7 @@ if __name__ == '__main__':
                 estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'áudio não baixou'}; r2_put_json(ESTADO, estado); continue
             feitos = 0; rejeitados = 0; print(canal, v['id'], 'picos:', ps, flush=True)
             for i, (p, peso) in enumerate(ps):
-                if feitos >= n: break
+                if feitos >= n or total_rodada >= 12: break
                 nome = f"{canal}-{v['id']}-{int(p)}"   # 17/11: pelo segundo do lance (a mesma live é revisitada; número de ordem repetia)
                 if any(x['id'] == nome for x in indice) or nome in estado.setdefault('descartados', []): continue
                 try: g, fala = C.cortar(link, p - C.ANTES_SOM, nome, modelo, T, PASTA, jogo)
@@ -231,7 +231,7 @@ if __name__ == '__main__':
                 ficha = {'id': nome, 'canal': canal, 'vod': v['id'], 'jogo': jogo, 'titulo_live': v['title'], 'inicio_s': p - C.ANTES_SOM, 'gancho': g, 'fala': fala[:600],
                          'video': f'{PASTA}/{nome}.mp4', 'legenda': (g.capitalize() + '. ' if g else '') + f'Corte da live do {canal} no {jogo} ' + ('#gta6 #gtavi' if jogo == 'GTA 6' else '#' + re.sub(r'\W', '', jogo.lower())) + f' #cortes #{canal}',
                          'criado': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'), 'estado': 'novo'}
-                feitos += 1; indice.append(ficha); r2_put_json(f'{PASTA}/indice.json', indice); print('corte pronto:', nome, flush=True)
+                feitos += 1; total_rodada += 1; indice.append(ficha); r2_put_json(f'{PASTA}/indice.json', indice); print('corte pronto:', nome, flush=True)
                 if jogo == 'GTA 6' and not TESTE:   # : vai direto para Aprovados na página
                     agora = datetime.datetime.now(datetime.timezone.utc).isoformat(); r2_put_json(f'{PASTA}/estado/{nome}.json', {'estado': 'aprovado', 'aprovado_em': agora, 'motivo': 'aprovado automaticamente (regra de 17/11)'})
         if v.get('nao_gameplay'): estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'conversa sobre GTA 6, não gameplay'}; r2_put_json(ESTADO, estado); continue
