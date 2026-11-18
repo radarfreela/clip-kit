@@ -7,7 +7,7 @@
 # Nada é postado daqui. A conta do TikTok do canal ainda não existe; a ligação com a página de aprovação vem depois, com o OK do 
 #   python3 esteira_gta.py            (rodada normal)
 #   python3 esteira_gta.py --listar   (só mostra o que acharia, sem baixar nada)
-import json, os, re, sys, tempfile, time, urllib.request, datetime, subprocess
+import random, json, os, re, sys, tempfile, time, urllib.request, datetime, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cortar_live as C
 
@@ -36,6 +36,15 @@ GQL = 'https://gql.twitch.tv/gql'; CID = 'kimne78kx3ncx6brgo4mv6wki5h1ko'   # cl
 def gql(q):
     r = urllib.request.Request(GQL, data=json.dumps({'query': q}).encode(), headers={'Client-ID': CID, 'Content-Type': 'application/json'})
     return json.load(urllib.request.urlopen(r, timeout=30))['data']
+
+# 18/11: legenda do post do GTA 6 = reação curta de quem assiste (frases do próprio canal), não resumo do óbvio; nunca repete as 9 últimas
+LEGENDAS_GTA = ['Olha esse gráfico', 'Olha isso no GTA', 'Esse final foi insano', 'Melhor jogo de todos os tempos', 'GTA é mesmo de outro mundo',
+                'Valeu a pena toda essa espera', 'Olha isso', 'Mentira que dá para fazer isso', 'Não sabia que dava para fazer isso', 'GTA 6 é outro mundo']
+
+def legenda_gta(indice, canal):
+    usadas = [x.get('legenda', '') for x in indice[-9:]]
+    livres = [f for f in LEGENDAS_GTA if not any(u.startswith(f + ' #') for u in usadas)] or LEGENDAS_GTA
+    return f'{random.choice(livres)} #gta6 #gtavi #cortes #{canal}'
 
 def r2_json(chave, padrao):
     with tempfile.TemporaryDirectory() as d:
@@ -229,7 +238,7 @@ if __name__ == '__main__':
                     continue
                 if len(fala.split()) < 15: print(nome, 'quase sem fala, descartado', flush=True); estado['descartados'].append(nome); r2_put_json(ESTADO, estado); continue   # corte de streamer vive da fala dele
                 ficha = {'id': nome, 'canal': canal, 'vod': v['id'], 'jogo': jogo, 'titulo_live': v['title'], 'inicio_s': p - C.ANTES_SOM, 'gancho': g, 'fala': fala[:600],
-                         'video': f'{PASTA}/{nome}.mp4', 'legenda': (g.capitalize() + '. ' if g else '') + f'Corte da live do {canal} no {jogo} ' + ('#gta6 #gtavi' if jogo == 'GTA 6' else '#' + re.sub(r'\W', '', jogo.lower())) + f' #cortes #{canal}',
+                         'video': f'{PASTA}/{nome}.mp4', 'legenda': legenda_gta(indice, canal) if jogo == 'GTA 6' else (g.capitalize() + '. ' if g else '') + f'Corte da live do {canal} no {jogo} #' + re.sub(r'\W', '', jogo.lower()) + f' #cortes #{canal}',
                          'criado': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'), 'estado': 'novo'}
                 feitos += 1; total_rodada += 1; indice.append(ficha); r2_put_json(f'{PASTA}/indice.json', indice); print('corte pronto:', nome, flush=True)
                 if jogo == 'GTA 6' and not TESTE:   # : vai direto para Aprovados na página
