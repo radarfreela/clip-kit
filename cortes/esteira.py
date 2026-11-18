@@ -41,10 +41,29 @@ def gql(q):
 LEGENDAS_GTA = ['Olha esse gráfico', 'Olha isso no GTA', 'Esse final foi insano', 'Melhor jogo de todos os tempos', 'GTA é mesmo de outro mundo',
                 'Valeu a pena toda essa espera', 'Olha isso', 'Mentira que dá para fazer isso', 'Não sabia que dava para fazer isso', 'GTA 6 é outro mundo']
 
-def legenda_gta(indice, canal):
-    usadas = [x.get('legenda', '') for x in indice[-9:]]
-    livres = [f for f in LEGENDAS_GTA if not any(u.startswith(f + ' #') for u in usadas)] or LEGENDAS_GTA
-    return f'{random.choice(livres)} #gta6 #gtavi #cortes #{canal}'
+NOMES = {'paulinholokobr': 'Paulinho o Loko', 'bistecone': 'Bistecone', 'alanzoka': 'Alanzoka', 'gaules': 'Gaules', 'nobru': 'Nobru', 'coringa': 'Coringa',
+         'davyjones': 'Davy Jones', 'luquet4': 'Luquet4', 'jukes': 'Jukes', 'mount': 'Mount', 'yoda': 'Yoda', 'rakin': 'Rakin', 'brino': 'Brino'}
+
+def legenda_gta(indice, canal, fala='', gancho=''):
+    """18/11: a IA escolhe o jeito de prender (reação de quem assiste OU nome do streamer + GTA 6) conforme o trecho; sem a IA, sorteia da lista"""
+    usadas = [x.get('legenda', '').split(' #')[0] for x in indice[-9:]]
+    nome = NOMES.get(canal, canal.capitalize()); tags = f' #gta6 #gtavi #cortes #{canal}'
+    livres = [f for f in LEGENDAS_GTA if f not in usadas] or LEGENDAS_GTA
+    try:
+        import anthropic
+        r = anthropic.Anthropic(timeout=60, max_retries=1).messages.create(model='claude-sonnet-5-5', max_tokens=300, messages=[{'role': 'user', 'content':
+            f'Trecho de live de GTA 6 do {nome}. Texto no topo do vídeo: {gancho}. Fala (transcrição, pode ter erro): {fala[:1500]}\n\n'
+            'Escreva a legenda do post do TikTok: UMA frase curta (2 a 7 palavras) que prende a atenção, no estilo destes exemplos: '
+            + '; '.join(LEGENDAS_GTA) + f'; {nome} jogando GTA 6; {nome} GTA 6. '
+            'Pode ser uma reação de quem assiste (escolha a que COMBINA com o que acontece no trecho: "esse final foi insano" só se o trecho tem um final forte, "olha esse gráfico" só se é paisagem ou visual) '
+            f'ou o nome do streamer com GTA 6. Não descreva o óbvio, não repita o texto do topo. Não use nenhuma destas, já usadas agora: {"; ".join(usadas) or "nenhuma"}. '
+            'Português do Brasil, sem aspas, sem emoji, sem hashtag, sem ponto final. Responda só a frase.'}])
+        txt = ''.join(b.text for b in r.content if getattr(b, 'type', '') == 'text')
+        f = next((l for l in txt.strip().splitlines() if l.strip()), '').strip().strip('"“”.').strip()
+        if 2 <= len(f.split()) <= 9 and '#' not in f and f not in usadas: return f + tags
+    except Exception as e:
+        print('legenda pela IA falhou:', e, flush=True)
+    return random.choice(livres) + tags
 
 def r2_json(chave, padrao):
     with tempfile.TemporaryDirectory() as d:
@@ -238,7 +257,7 @@ if __name__ == '__main__':
                     continue
                 if len(fala.split()) < 15: print(nome, 'quase sem fala, descartado', flush=True); estado['descartados'].append(nome); r2_put_json(ESTADO, estado); continue   # corte de streamer vive da fala dele
                 ficha = {'id': nome, 'canal': canal, 'vod': v['id'], 'jogo': jogo, 'titulo_live': v['title'], 'inicio_s': p - C.ANTES_SOM, 'gancho': g, 'fala': fala[:600],
-                         'video': f'{PASTA}/{nome}.mp4', 'legenda': legenda_gta(indice, canal) if jogo == 'GTA 6' else (g.capitalize() + '. ' if g else '') + f'Corte da live do {canal} no {jogo} #' + re.sub(r'\W', '', jogo.lower()) + f' #cortes #{canal}',
+                         'video': f'{PASTA}/{nome}.mp4', 'legenda': legenda_gta(indice, canal, fala, g) if jogo == 'GTA 6' else (g.capitalize() + '. ' if g else '') + f'Corte da live do {canal} no {jogo} #' + re.sub(r'\W', '', jogo.lower()) + f' #cortes #{canal}',
                          'criado': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'), 'estado': 'novo'}
                 feitos += 1; total_rodada += 1; indice.append(ficha); r2_put_json(f'{PASTA}/indice.json', indice); print('corte pronto:', nome, flush=True)
                 if jogo == 'GTA 6' and not TESTE:   # : vai direto para Aprovados na página
