@@ -8,7 +8,7 @@ os.environ.setdefault('R2_CRED_FILE', os.path.expanduser('~/.r2cred'))
 FONTE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'fonts', 'Anton-Regular.ttf')
 # : começavam 50 s antes do lance, gente passava o dedo.
 # Agora 30 s começando perto do lance: no pico de VOLUME (grito/risada do streamer) o corte começa 10 s antes; no pico de CHAT, 25 s (o chat reage ~10–20 s depois)
-W, H, DUR, ANTES, ANTES_SOM = 1080, 1920, 30, 25, 10
+W, H, DUR, ANTES, ANTES_SOM = 1080, 1920, 60, 25, 20   # 18/11: formato novo = 60 s, começa 20 s antes do lance, sem legenda palavra por palavra
 def sh(*a, **k): return subprocess.run([str(x) for x in a], check=True, **k)
 
 def picos(chat, n):
@@ -136,7 +136,7 @@ def cortar(link, a, nome, modelo, T, destino, jogo='GTA 6'):
     for s in segs:
         fala.append(s.text)
         for w in s.words or []: palavras.append((w.word.strip(), w.start, w.end))
-    legenda_ass(palavras, f'{T}/{nome}.ass'); g = gancho(' '.join(fala), jogo)
+    g = gancho(' '.join(fala), jogo)   # 18/11: sem legenda queimada; a fala só serve para o gancho e a legenda do post
     lin, l = [], ''   # gancho em até 2 linhas de ~18 letras (no teste passou da largura da tela)
     for w in g.split():
         if len(l + ' ' + w) > 18 and l: lin.append(l); l = w
@@ -148,7 +148,7 @@ def cortar(link, a, nome, modelo, T, destino, jogo='GTA 6'):
         topo += f"drawtext=fontfile='{FONTE}':textfile='{T}/{nome}-g{k}.txt':fontsize=74:fontcolor=white:borderw=6:bordercolor=black:y_align=font:x=(w-tw)/2:y={300 + k * 92},"
     sh('ffmpeg', '-v', 'error', '-y', '-i', f'{T}/{nome}-cru.mp4', '-filter_complex',
        f"[0:v]split[a][b];[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=8:2,eq=brightness=-0.15,scale={W}:{H}[f];"
-       f"[b]scale={W}:-2[j];[f][j]overlay=0:(H-h)/2,{topo}subtitles='{T}/{nome}.ass':fontsdir='{os.path.dirname(FONTE)}',format=yuv420p[v]",
+       f"[b]scale={W}:-2[j];[f][j]overlay=0:(H-h)/2,{topo}format=yuv420p[v]",
        '-map', '[v]', '-map', '0:a?', '-t', DUR, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', f'{T}/{nome}.mp4', timeout=600)
     sh('sh', R2, 'put', f'{T}/{nome}.mp4', f'{destino}/{nome}.mp4')
     return g, ' '.join(fala)

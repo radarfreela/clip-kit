@@ -248,7 +248,7 @@ if __name__ == '__main__':
                 continue
             feitos = 0; rejeitados = 0; print(canal, v['id'], 'picos:', ps, flush=True)
             for i, (p, peso) in enumerate(ps):
-                if feitos >= n or total_rodada >= 12: break
+                if feitos >= n or total_rodada >= 8: break   # 18/11: cortes de 60 s demoram o dobro; 8 por rodada cabem no job
                 nome = f"{canal}-{v['id']}-{int(p)}"   # 17/11: pelo segundo do lance (a mesma live é revisitada; número de ordem repetia)
                 if any(x['id'] == nome for x in indice) or nome in estado.setdefault('descartados', []): continue
                 try: g, fala = C.cortar(link, p - C.ANTES_SOM, nome, modelo, T, PASTA, jogo)
