@@ -27,22 +27,25 @@ def picos(chat, n):
 
 def picos_som(link, T, n, faixas=None):
     # 07/11: VOD da Twitch não traz o chat pelo yt-dlp; o volume da voz do streamer (grito, risada) marca o lance
+    # 18/11: live ainda no ar travou 55 min baixando o áudio (a lista da live não acaba): agora baixa só o trecho de GTA 6 (faixas) e com tempo máximo
     import numpy as np
-    try: sh('yt-dlp', '-q', '--no-warnings', '-N', '8', '-f', 'ba/Audio_Only/worst', '-o', f'{T}/audio.%(ext)s', link, capture_output=True, text=True)
+    a0 = int(min(i for i, f in faixas)) if faixas else 0; a1 = int(max(f for i, f in faixas)) if faixas else 0
+    sec = ['--download-sections', f'*{a0}-{a1}'] if faixas else []
+    try: sh('yt-dlp', '-q', '--no-warnings', '-N', '8', '-f', 'ba/Audio_Only/worst', *sec, '-o', f'{T}/audio.%(ext)s', link, capture_output=True, text=True, timeout=900)
     except subprocess.CalledProcessError:   # 07/11 (felps): "Initialization fragment found after media fragments" com download paralelo; de novo em fila
         for f in os.listdir(T):
             if f.startswith('audio.'): os.remove(f'{T}/{f}')
-        sh('yt-dlp', '-q', '--no-warnings', '-f', 'ba/Audio_Only/worst', '-o', f'{T}/audio.%(ext)s', link, capture_output=True, text=True)
+        sh('yt-dlp', '-q', '--no-warnings', '-f', 'ba/Audio_Only/worst', *sec, '-o', f'{T}/audio.%(ext)s', link, capture_output=True, text=True, timeout=900)
     arq = next(f'{T}/{f}' for f in os.listdir(T) if f.startswith('audio.'))
     x = np.frombuffer(subprocess.run(['ffmpeg', '-v', 'error', '-i', arq, '-ac', '1', '-ar', '8000', '-f', 's16le', '-'], capture_output=True, check=True).stdout, dtype=np.int16).astype(np.float32)
     rms = np.sqrt(np.mean(x[: len(x) // 80000 * 80000].reshape(-1, 80000) ** 2, axis=1))   # 10 s por bloco
     base = np.convolve(rms, np.ones(30) / 30, 'same') + 1   # comparado com os 5 min em volta (não premia trecho só com música alta)
     nota = rms / base; out = []
-    dentro = lambda b: faixas is None or any(i + ANTES_SOM <= b * 10 <= f - (DUR - ANTES_SOM) for i, f in faixas)   # o corte inteiro cai dentro do trecho de GTA 6
+    dentro = lambda b: faixas is None or any(i + ANTES_SOM <= a0 + b * 10 <= f - (DUR - ANTES_SOM) for i, f in faixas)   # o corte inteiro cai dentro do trecho de GTA 6
     for b in np.argsort(-nota):
-        if all(abs(int(b) - o) * 10 >= 120 for o in out) and b * 10 > ANTES_SOM and dentro(int(b)): out.append(int(b))   # cortes curtos: picos a 2 min um do outro
+        if all(abs(int(b) - o) * 10 >= 120 for o in out) and a0 + b * 10 > ANTES_SOM and dentro(int(b)): out.append(int(b))   # cortes curtos: picos a 2 min um do outro
         if len(out) == n: break
-    return [(b * 10, round(float(nota[b]), 2)) for b in out]
+    return [(a0 + b * 10, round(float(nota[b]), 2)) for b in out]
 
 def legenda_ass(palavras, arq):
     # palavra por palavra, 3 por vez, a que está sendo falada em amarelo; faixa de baixo (longe do gancho do topo)
@@ -119,7 +122,7 @@ def cortar(link, a, nome, modelo, T, destino, jogo='GTA 6'):
     """baixa [a, a+DUR] da live, legenda palavra por palavra, gancho no topo, envia ao R2 em <destino>/<nome>.mp4; devolve (gancho, fala)."""
     # 07/11: 1080p + recodificar no download levava ~10 min por corte; agora 720p, 10 s de sobra antes e o corte exato no ffmpeg
     a0 = max(0, a - 10)
-    sh('yt-dlp', '-q', '--no-warnings', '-N', '8', '-f', 'bv*[height<=720]+ba/b[height<=720]/b', '--download-sections', f'*{a0}-{a + DUR + 2}', '--merge-output-format', 'mp4', '-o', f'{T}/{nome}-bruto.mp4', link)
+    sh('yt-dlp', '-q', '--no-warnings', '-N', '8', '-f', 'bv*[height<=720]+ba/b[height<=720]/b', '--download-sections', f'*{a0}-{a + DUR + 2}', '--merge-output-format', 'mp4', '-o', f'{T}/{nome}-bruto.mp4', link, timeout=600)
     sh('ffmpeg', '-v', 'error', '-y', '-ss', f'{a - a0}', '-i', f'{T}/{nome}-bruto.mp4', '-t', DUR, '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', '-c:a', 'aac', '-b:a', '192k', f'{T}/{nome}-cru.mp4', timeout=300)
     if parado(f'{T}/{nome}-cru.mp4') > 0.4: raise Parado(nome)   # 
     import numpy as np   # 07/11: o PyAV novo quebrou a leitura do faster-whisper; o áudio entra já decodificado pelo ffmpeg

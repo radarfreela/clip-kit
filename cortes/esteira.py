@@ -224,6 +224,8 @@ if __name__ == '__main__':
     for canal, v, jogo, tr, total in cand: print(f"{canal} {v['id']} {total // 60} min de {jogo} em {len(tr)} trecho(s): {v['title'][:80]}", flush=True)
     if '--listar' in sys.argv: sys.exit(0)
     if not cand: r2_put_json(ESTADO, estado); print('nada para cortar'); sys.exit(0)
+    import shutil
+    if not shutil.which('ffmpeg'): sys.exit('ffmpeg não instalou nesta rodada: nada foi marcado, a próxima rodada tenta de novo')
     from faster_whisper import WhisperModel
     modelo = WhisperModel('small', device='cpu', compute_type='int8')
     indice = r2_json(f'{PASTA}/indice.json', [])
@@ -240,7 +242,9 @@ if __name__ == '__main__':
             try: ps = C.picos_som(link, T, n * 3, faixas=tr)
             except Exception as e:
                 print(canal, v['id'], 'não baixou o áudio:', str(getattr(e, 'stderr', '') or e)[-300:], flush=True)
-                estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'áudio não baixou'}; r2_put_json(ESTADO, estado); continue
+                if not v.get('ao_vivo') and 'ffmpeg' not in str(getattr(e, 'stderr', '') or e):   # 18/11: live no ar ou falta de ffmpeg = tenta de novo na próxima rodada
+                    estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'áudio não baixou'}; r2_put_json(ESTADO, estado)
+                continue
             feitos = 0; rejeitados = 0; print(canal, v['id'], 'picos:', ps, flush=True)
             for i, (p, peso) in enumerate(ps):
                 if feitos >= n or total_rodada >= 12: break
