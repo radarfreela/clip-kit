@@ -106,7 +106,9 @@ def _gancho(texto, jogo):
     txt = ''.join(b.text for b in r.content if getattr(b, 'type', '') == 'text')   # a resposta pode vir com bloco de raciocínio antes do texto
     g = next((l for l in txt.strip().splitlines() if l.strip()), '').strip().replace('"', '').replace('“', '').replace('”', '').upper()   # 07/11: veio texto extra numa 2ª linha; só a 1ª vale
     g = re.sub(r'^(O |A )?(STREAMER|GAMER|JOGADOR|JOGADORA)\s+', '', g)   # 
-    return g[:70]
+    g = g[:70]
+    if len(g.split()) < 4 or len(g.split()[-1].strip('.,!?…')) < 2: return ''   # 18/11: saiu 'AINDA T' e 'EU TENHO QUE TE CHA' (frase cortada): sem gancho, o corte é descartado
+    return g
 
 
 class Parado(Exception): pass

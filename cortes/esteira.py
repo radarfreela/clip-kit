@@ -45,22 +45,21 @@ NOMES = {'paulinholokobr': 'Paulinho o Loko', 'bistecone': 'Bistecone', 'alanzok
          'davyjones': 'Davy Jones', 'luquet4': 'Luquet4', 'jukes': 'Jukes', 'mount': 'Mount', 'yoda': 'Yoda', 'rakin': 'Rakin', 'brino': 'Brino'}
 
 def legenda_gta(indice, canal, fala='', gancho=''):
-    """18/11: a IA escolhe o jeito de prender (reação de quem assiste OU nome do streamer + GTA 6) conforme o trecho; sem a IA, sorteia da lista"""
+    """18/11: só as frases dele (reações + "<nome> jogando GTA 6" / "<nome> GTA 6"); a IA só ESCOLHE a que combina com o trecho, nunca escreve outra"""
     usadas = [x.get('legenda', '').split(' #')[0] for x in indice[-9:]]
     nome = NOMES.get(canal, canal.capitalize()); tags = f' #gta6 #gtavi #cortes #{canal}'
-    livres = [f for f in LEGENDAS_GTA if f not in usadas] or LEGENDAS_GTA
+    opcoes = LEGENDAS_GTA + [f'{nome} jogando GTA 6', f'{nome} GTA 6']
+    livres = [f for f in opcoes if f not in usadas] or opcoes
     try:
         import anthropic
-        r = anthropic.Anthropic(timeout=60, max_retries=1).messages.create(model='claude-sonnet-5-5', max_tokens=300, messages=[{'role': 'user', 'content':
-            f'Trecho de live de GTA 6 do {nome}. Texto no topo do vídeo: {gancho}. Fala (transcrição, pode ter erro): {fala[:1500]}\n\n'
-            'Escreva a legenda do post do TikTok: UMA frase curta (2 a 7 palavras) que prende a atenção, no estilo destes exemplos: '
-            + '; '.join(LEGENDAS_GTA) + f'; {nome} jogando GTA 6; {nome} GTA 6. '
-            'Pode ser uma reação de quem assiste (escolha a que COMBINA com o que acontece no trecho: "esse final foi insano" só se o trecho tem um final forte, "olha esse gráfico" só se é paisagem ou visual) '
-            f'ou o nome do streamer com GTA 6. Não descreva o óbvio, não repita o texto do topo. Não use nenhuma destas, já usadas agora: {"; ".join(usadas) or "nenhuma"}. '
-            'Português do Brasil, sem aspas, sem emoji, sem hashtag, sem ponto final. Responda só a frase.'}])
+        lista = '\n'.join(f'{i}. {f}' for i, f in enumerate(livres))
+        r = anthropic.Anthropic(timeout=60, max_retries=1).messages.create(model='claude-sonnet-5-5', max_tokens=50, messages=[{'role': 'user', 'content':
+            f'Trecho de live de GTA 6 do {nome}. Texto no topo do vídeo: {gancho}. Fala (transcrição): {fala[:1500]}\n\n'
+            f'Escolha a legenda de post que mais prende para ESTE trecho, entre estas:\n{lista}\n'
+            '"Esse final foi insano" só se o trecho tem um final forte; "Olha esse gráfico" só se o destaque é o visual; na dúvida, o nome do streamer. Responda só o número.'}])
         txt = ''.join(b.text for b in r.content if getattr(b, 'type', '') == 'text')
-        f = next((l for l in txt.strip().splitlines() if l.strip()), '').strip().strip('"“”.').strip()
-        if 2 <= len(f.split()) <= 9 and '#' not in f and f not in usadas: return f + tags
+        m = re.search(r'\d+', txt)
+        if m and int(m.group()) < len(livres): return livres[int(m.group())] + tags
     except Exception as e:
         print('legenda pela IA falhou:', e, flush=True)
     return random.choice(livres) + tags
