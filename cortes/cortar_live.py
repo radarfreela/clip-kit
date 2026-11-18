@@ -71,6 +71,24 @@ def gancho(texto, jogo='GTA 6'):
 SOLTAS = {'A', 'O', 'AS', 'OS', 'UM', 'UMA', 'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'QUE', 'PARA', 'PRA', 'COM', 'EM', 'NO', 'NA', 'POR', 'AO', 'SEM', 'SE', 'MAS', 'OU'}
 RELATO = {'REAGIU', 'COMENTOU', 'PERGUNTOU', 'FALOU', 'DISSE', 'COMEMOROU', 'ELOGIOU', 'ADMITIU', 'EXPLICOU'}
 
+def e_gameplay_gta6(arq):
+    """17/11: live com categoria 'Just Chatting' e GTA 6 só no título pode ser conversa SOBRE o jogo. A IA olha 3 quadros do corte e diz se é GTA 6 sendo jogado."""
+    import anthropic, base64
+    dur = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', arq], capture_output=True, text=True).stdout.strip() or 30)
+    imgs = []
+    for k, t in enumerate((dur * 0.2, dur * 0.5, dur * 0.8)):
+        q = f'{arq}.q{k}.jpg'; sh('ffmpeg', '-v', 'error', '-y', '-ss', f'{t:.1f}', '-i', arq, '-frames:v', '1', '-vf', 'scale=540:-2', '-q:v', '5', q)
+        imgs.append({'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': base64.b64encode(open(q, 'rb').read()).decode()}})
+    try:
+        r = anthropic.Anthropic(timeout=60, max_retries=1).messages.create(model='claude-sonnet-5-5', max_tokens=300, messages=[{'role': 'user', 'content': imgs + [{'type': 'text', 'text':
+            'São 3 quadros de um corte vertical de live (o jogo fica na faixa do meio). Na maior parte dos quadros, a tela mostra GAMEPLAY de GTA 6 (Grand Theft Auto VI: '
+            'Vice City, mundo aberto, personagem andando, dirigindo ou atirando, HUD de jogo)? Trailer, vídeo do YouTube, site, chat, webcam em tela cheia, outro jogo ou menu = NÃO. '
+            'Responda só SIM ou NAO.'}]}])
+        txt = ''.join(b.text for b in r.content if getattr(b, 'type', '') == 'text').strip().upper()
+        return txt.startswith('SIM')
+    except Exception as e:
+        print('checagem de gameplay falhou:', e, flush=True); return False   # na dúvida não aprova
+
 def _gancho(texto, jogo):
     import anthropic
     r = anthropic.Anthropic(timeout=60, max_retries=1).messages.create(model='claude-sonnet-5-5', max_tokens=400, messages=[{'role': 'user', 'content':

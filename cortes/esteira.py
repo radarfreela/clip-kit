@@ -23,6 +23,8 @@ TESTE = os.environ.get('JOGO_RE')   # só para testar antes do lançamento (19/1
 # 
 SO_GTA = not TESTE
 GTA6 = re.compile(TESTE or r'grand theft auto vi\b|\bgta\s*(6|vi)\b', re.I)
+ESPERA = re.compile(r'amanh|antes d|[uú]ltimo dia|falta|contagem|esperando|ansios|lan[cç]amento|trailer|react', re.I)   # 17/11: falar DO GTA 6 ≠ jogar
+JOGANDO = re.compile(r'jogando|gameplay|zerando|joguei|playthrough|ao vivo no gta|primeira vez', re.I)
 RP = re.compile(r'\brp\b|role\s*play|cidade alta|complexo|nopixel|fivem|\bgta\s*(5|v)\b|grand theft auto v\b', re.I)
 PASTA = 'gta/teste' if TESTE else 'gta/cortes'; ESTADO = 'gta/estado-teste.json' if TESTE else 'gta/estado.json'
 NAO_JOGO = re.compile(r'just chatting|conversando|music|música|special events|talk shows|pools|asmr|art\b|software|travel|food|sports|irl|slots|virtual casino', re.I)
@@ -63,13 +65,17 @@ def vods_kick(canal):
                     'game': {'name': ((v.get('categories') or [{}])[0] or {}).get('name', '')}, 'link': v.get('source') or f'https://kick.com/{canal}/videos/{uuid}'})   # 07/11: na nuvem o extrator do Kick dá NOT_FOUND; o m3u8 direto baixa
     return out
 
+def titulo_gta(vod):
+    t = vod.get('title') or ''
+    return bool(GTA6.search(t)) and not RP.search(t) and (not ESPERA.search(t) or bool(JOGANDO.search(t)))
+
 def trechos_gta6(vod):
     # capítulos da Twitch = troca de jogo na live; sem capítulo, vale o jogo da live inteira.
     # devolve (jogo, faixas) do jogo que mais rendeu na live: GTA 6 se houver; senão o jogo com mais tempo (nunca conversa/RP/GTA V)
     link = vod.get('link') or f"https://www.twitch.tv/videos/{vod['id']}"
     if vod.get('link'):   # Kick: um jogo por live, sem capítulos
         j = (vod.get('game') or {}).get('name', '')
-        if GTA6.search(vod.get('title') or '') and not RP.search(vod.get('title') or ''): j = 'GTA 6'   # 17/11: Bistecone joga com a categoria 'Just Chatting'; o título diz o jogo
+        if titulo_gta(vod): j = 'GTA 6'; vod['por_titulo'] = True   # 17/11: Bistecone joga com a categoria 'Just Chatting'; o título diz o jogo
         if not j or RP.search(j) or NAO_JOGO.search(j) or (TESTE and not GTA6.search(j)): return ('', [])
         return ('GTA 6' if GTA6.search(j) and not TESTE else j, [(0, vod['lengthSeconds'])])
     r = subprocess.run(['yt-dlp', '-J', '--skip-download', '--no-warnings', link], capture_output=True, text=True, timeout=120)
@@ -82,8 +88,8 @@ def trechos_gta6(vod):
         j = (c.get('title') or '').strip()
         if j and not RP.search(j) and not NAO_JOGO.search(j): jogos.setdefault(j, []).append((int(c['start_time']), int(c['end_time'])))
     gta = [j for j in jogos if GTA6.search(j)]
-    if not gta and not TESTE and GTA6.search(vod.get('title') or '') and not RP.search(vod.get('title') or ''):   # 17/11: categoria errada, título diz GTA 6
-        return ('GTA 6', [(0, vod['lengthSeconds'])])
+    if not gta and not TESTE and titulo_gta(vod):   # 17/11: categoria errada, título diz GTA 6
+        vod['por_titulo'] = True; return ('GTA 6', [(0, vod['lengthSeconds'])])
     if not jogos: return ('', [])
     if TESTE and not gta: return ('', [])
     j = gta[0] if gta else max(jogos, key=lambda k: sum(f - i for i, f in jogos[k]))
@@ -207,7 +213,7 @@ if __name__ == '__main__':
             except Exception as e:
                 print(canal, v['id'], 'não baixou o áudio:', str(getattr(e, 'stderr', '') or e)[-300:], flush=True)
                 estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'áudio não baixou'}; r2_put_json(ESTADO, estado); continue
-            feitos = 0; print(canal, v['id'], 'picos:', ps, flush=True)
+            feitos = 0; rejeitados = 0; print(canal, v['id'], 'picos:', ps, flush=True)
             for i, (p, peso) in enumerate(ps):
                 if feitos >= n: break
                 nome = f"{canal}-{v['id']}-{int(p)}"   # 17/11: pelo segundo do lance (a mesma live é revisitada; número de ordem repetia)
@@ -216,6 +222,11 @@ if __name__ == '__main__':
                 except C.Parado: print(nome, 'tela parada, descartado', flush=True); estado.setdefault('descartados', []).append(nome); r2_put_json(ESTADO, estado); continue
                 except Exception as e: print(nome, 'falhou:', e, flush=True); continue
                 if not g: print(nome, 'sem gancho (fala sem sentido), descartado', flush=True); estado.setdefault('descartados', []).append(nome); r2_put_json(ESTADO, estado); continue   # 08/11: corte sem gancho não serve
+                if v.get('por_titulo') and not C.e_gameplay_gta6(f'{T}/{nome}.mp4'):   # 17/11: entrou só pelo título; a tela tem que ser GTA 6 jogado
+                    print(nome, 'não é gameplay de GTA 6, descartado', flush=True); estado.setdefault('descartados', []).append(nome); r2_put_json(ESTADO, estado)
+                    rejeitados += 1
+                    if rejeitados >= 3 and not feitos: print(canal, v['id'], 'é conversa sobre o GTA, não gameplay: deixada de lado', flush=True); v['nao_gameplay'] = True; break
+                    continue
                 if len(fala.split()) < 15: print(nome, 'quase sem fala, descartado', flush=True); estado['descartados'].append(nome); r2_put_json(ESTADO, estado); continue   # corte de streamer vive da fala dele
                 ficha = {'id': nome, 'canal': canal, 'vod': v['id'], 'jogo': jogo, 'titulo_live': v['title'], 'inicio_s': p - C.ANTES_SOM, 'gancho': g, 'fala': fala[:600],
                          'video': f'{PASTA}/{nome}.mp4', 'legenda': (g.capitalize() + '. ' if g else '') + f'Corte da live do {canal} no {jogo} ' + ('#gta6 #gtavi' if jogo == 'GTA 6' else '#' + re.sub(r'\W', '', jogo.lower())) + f' #cortes #{canal}',
@@ -223,6 +234,7 @@ if __name__ == '__main__':
                 feitos += 1; indice.append(ficha); r2_put_json(f'{PASTA}/indice.json', indice); print('corte pronto:', nome, flush=True)
                 if jogo == 'GTA 6' and not TESTE:   # : vai direto para Aprovados na página
                     agora = datetime.datetime.now(datetime.timezone.utc).isoformat(); r2_put_json(f'{PASTA}/estado/{nome}.json', {'estado': 'aprovado', 'aprovado_em': agora, 'motivo': 'aprovado automaticamente (regra de 17/11)'})
+        if v.get('nao_gameplay'): estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'conversa sobre GTA 6, não gameplay'}; r2_put_json(ESTADO, estado); continue
         if v.get('ao_vivo'): estado.setdefault('parciais', {})[v['id']] = max(b for a, b in tr); print(canal, v['id'], 'ao vivo: olhado até', estado['parciais'][v['id']] // 60, 'min', flush=True)
         else: estado['vistos'][v['id']] = {'canal': canal, 'motivo': 'cortado', 'em': time.strftime('%Y-%m-%d %H:%M')}
         cortadas += 1
