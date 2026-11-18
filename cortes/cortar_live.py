@@ -80,14 +80,14 @@ def e_gameplay_gta6(arq):
     dur = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', arq], capture_output=True, text=True).stdout.strip() or 30)
     imgs = []
     for k, t in enumerate((dur * 0.2, dur * 0.5, dur * 0.8)):
-        q = f'{arq}.q{k}.jpg'; sh('ffmpeg', '-v', 'error', '-y', '-ss', f'{t:.1f}', '-i', arq, '-frames:v', '1', '-vf', 'scale=540:-2', '-q:v', '5', q)
+        q = f'{arq}.q{k}.jpg'; sh('ffmpeg', '-v', 'error', '-y', '-ss', f'{t:.1f}', '-i', arq, '-frames:v', '1', '-vf', 'crop=iw:ih*0.32:0:ih*0.34,scale=960:-2', '-q:v', '4', q)   # 18/11: só a faixa do jogo, maior (o minimapa ficava ilegível)
         imgs.append({'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': base64.b64encode(open(q, 'rb').read()).decode()}})
     try:
         r = anthropic.Anthropic(timeout=60, max_retries=1).messages.create(model='claude-sonnet-5-5', max_tokens=300, messages=[{'role': 'user', 'content': imgs + [{'type': 'text', 'text':
-            'São 3 quadros de um corte vertical de live (o jogo fica na faixa do meio). Na maior parte dos quadros, a tela mostra GAMEPLAY de GTA 6 (Grand Theft Auto VI: '
-            'Vice City, mundo aberto, personagem andando, dirigindo ou atirando, HUD de jogo)? Trailer, vídeo do YouTube, site, chat, webcam (mesmo com logo, arte ou overlay do GTA VI em volta), tela de espera, outro jogo ou menu = NÃO. '
-            'O que conta é a CENA DO JOGO rodando, não o logo nem o nome do jogo na tela. '
-            'CUTSCENE (cena de filme da história, câmera de cinema, sem minimapa nem HUD, personagens conversando sem o jogador controlar) também = NÃO: o público quer o jogador JOGANDO. '
+            'São 3 quadros da tela do jogo numa live de GTA 6 (a câmera pequena do streamer fica num canto). Responda SIM se em pelo menos 2 dos 3 quadros o jogador está JOGANDO: '
+            'tem minimapa/radar no canto inferior esquerdo ou HUD, ou o personagem está dirigindo, andando, nadando, atirando ou jogando uma atividade (sinuca, pesca etc.) controlada pelo jogador. '
+            'Responda NAO se na maior parte dos quadros é: cutscene de filme (sem minimapa nem HUD, personagens conversando), menu, mapa em tela cheia, tela de carregamento, só a webcam, trailer, site ou outro jogo. '
+            'Na dúvida entre jogando e cutscene, o minimapa decide. '
             'Responda só SIM ou NAO.'}]}])
         txt = ''.join(b.text for b in r.content if getattr(b, 'type', '') == 'text').strip().upper()
         return txt.startswith('SIM')
