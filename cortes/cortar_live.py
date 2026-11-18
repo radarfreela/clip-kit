@@ -31,11 +31,11 @@ def picos_som(link, T, n, faixas=None):
     import numpy as np
     a0 = int(min(i for i, f in faixas)) if faixas else 0; a1 = int(max(f for i, f in faixas)) if faixas else 0
     sec = ['--download-sections', f'*{a0}-{a1}'] if faixas else []
-    try: sh('yt-dlp', '-q', '--no-warnings', '-N', '8', '-f', 'ba/Audio_Only/worst', *sec, '-o', f'{T}/audio.%(ext)s', link, capture_output=True, text=True, timeout=900)
+    try: sh('yt-dlp', '-q', '--no-warnings', '-N', '8', '-f', 'ba/Audio_Only/worst', *sec, '-o', f'{T}/audio.%(ext)s', link, capture_output=True, text=True, timeout=480)
     except subprocess.CalledProcessError:   # 07/11 (felps): "Initialization fragment found after media fragments" com download paralelo; de novo em fila
         for f in os.listdir(T):
             if f.startswith('audio.'): os.remove(f'{T}/{f}')
-        sh('yt-dlp', '-q', '--no-warnings', '-f', 'ba/Audio_Only/worst', *sec, '-o', f'{T}/audio.%(ext)s', link, capture_output=True, text=True, timeout=900)
+        sh('yt-dlp', '-q', '--no-warnings', '-f', 'ba/Audio_Only/worst', *sec, '-o', f'{T}/audio.%(ext)s', link, capture_output=True, text=True, timeout=480)
     arq = next(f'{T}/{f}' for f in os.listdir(T) if f.startswith('audio.'))
     x = np.frombuffer(subprocess.run(['ffmpeg', '-v', 'error', '-i', arq, '-ac', '1', '-ar', '8000', '-f', 's16le', '-'], capture_output=True, check=True).stdout, dtype=np.int16).astype(np.float32)
     rms = np.sqrt(np.mean(x[: len(x) // 80000 * 80000].reshape(-1, 80000) ** 2, axis=1))   # 10 s por bloco

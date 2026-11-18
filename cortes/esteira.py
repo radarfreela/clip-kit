@@ -147,6 +147,8 @@ def candidatos(estado):
             ini = estado.setdefault('parciais', {}).get(v['id'], 0)
             if ini: tr = [(max(a, ini), b) for a, b in tr if b > ini + 60]
             if ao_vivo: tr = [(a, min(b, v['lengthSeconds'] - 30)) for a, b in tr if min(b, v['lengthSeconds'] - 30) - a > 120]
+            if ao_vivo:   # 18/11: 3 h de áudio de live no ar não baixaram em 15 min na nuvem; olha só a última hora (o que é novo e quente)
+                fim = max((b for a, b in tr), default=0); tr = [(max(a, fim - 3600), b) for a, b in tr if b > fim - 3600]
             v['ao_vivo'] = ao_vivo
             if SO_GTA and jogo != 'GTA 6': estado['vistos'][v['id']] = {'canal': canal, 'motivo': f'não é GTA 6 ({jogo or "conversa"})'}; continue
             total = sum(f - i for i, f in tr)
