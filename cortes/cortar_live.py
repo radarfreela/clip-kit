@@ -85,7 +85,8 @@ def e_gameplay_gta6(arq):
     try:
         r = anthropic.Anthropic(timeout=60, max_retries=1).messages.create(model='claude-sonnet-5-5', max_tokens=300, messages=[{'role': 'user', 'content': imgs + [{'type': 'text', 'text':
             'São 3 quadros de um corte vertical de live (o jogo fica na faixa do meio). Na maior parte dos quadros, a tela mostra GAMEPLAY de GTA 6 (Grand Theft Auto VI: '
-            'Vice City, mundo aberto, personagem andando, dirigindo ou atirando, HUD de jogo)? Trailer, vídeo do YouTube, site, chat, webcam em tela cheia, outro jogo ou menu = NÃO. '
+            'Vice City, mundo aberto, personagem andando, dirigindo ou atirando, HUD de jogo)? Trailer, vídeo do YouTube, site, chat, webcam (mesmo com logo, arte ou overlay do GTA VI em volta), tela de espera, outro jogo ou menu = NÃO. '
+            'O que conta é a CENA DO JOGO rodando, não o logo nem o nome do jogo na tela. '
             'Responda só SIM ou NAO.'}]}])
         txt = ''.join(b.text for b in r.content if getattr(b, 'type', '') == 'text').strip().upper()
         return txt.startswith('SIM')
