@@ -255,10 +255,10 @@ if __name__ == '__main__':
                 except C.Parado: print(nome, 'tela parada, descartado', flush=True); estado.setdefault('descartados', []).append(nome); r2_put_json(ESTADO, estado); continue
                 except Exception as e: print(nome, 'falhou:', e, flush=True); continue
                 if not g: print(nome, 'sem gancho (fala sem sentido), descartado', flush=True); estado.setdefault('descartados', []).append(nome); r2_put_json(ESTADO, estado); continue   # 08/11: corte sem gancho não serve
-                if v.get('por_titulo') and not C.e_gameplay_gta6(f'{T}/{nome}.mp4'):   # 17/11: entrou só pelo título; a tela tem que ser GTA 6 jogado
+                if jogo == 'GTA 6' and not TESTE and not C.e_gameplay_gta6(f'{T}/{nome}.mp4'):   # 18/11: vale para todo corte de GTA 6 (cutscene de filme não serve)
                     print(nome, 'não é gameplay de GTA 6, descartado', flush=True); estado.setdefault('descartados', []).append(nome); r2_put_json(ESTADO, estado)
                     rejeitados += 1
-                    if rejeitados >= 3 and not feitos: print(canal, v['id'], 'é conversa sobre o GTA, não gameplay: deixada de lado', flush=True); v['nao_gameplay'] = True; break
+                    if v.get('por_titulo') and rejeitados >= 3 and not feitos: print(canal, v['id'], 'é conversa sobre o GTA, não gameplay: deixada de lado', flush=True); v['nao_gameplay'] = True; break
                     continue
                 if len(fala.split()) < 15: print(nome, 'quase sem fala, descartado', flush=True); estado['descartados'].append(nome); r2_put_json(ESTADO, estado); continue   # corte de streamer vive da fala dele
                 ficha = {'id': nome, 'canal': canal, 'vod': v['id'], 'jogo': jogo, 'titulo_live': v['title'], 'inicio_s': p - C.ANTES_SOM, 'gancho': g, 'fala': fala[:600],
