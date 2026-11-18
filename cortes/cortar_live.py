@@ -94,6 +94,8 @@ def e_gameplay_gta6(arq):
     except Exception as e:
         print('checagem de gameplay falhou:', e, flush=True); return False   # na dúvida não aprova
 
+PROIBIDAS = re.compile(r'viad|bich|porr|caralh|merd|puta|fod|buceta|cu\b|coca[ií]na|droga|maconh|crack|estupr|suic[ií]d|mat(a|ou|ar) (ele|voc)|nazi|macac|retardad', re.I)
+
 def _gancho(texto, jogo):
     import anthropic
     r = anthropic.Anthropic(timeout=60, max_retries=1).messages.create(model='claude-sonnet-5-5', max_tokens=400, messages=[{'role': 'user', 'content':
@@ -103,11 +105,12 @@ def _gancho(texto, jogo):
         '(ex.: "CRAVOU O PRÓXIMO GOL… E OLHA NO QUE DEU", "O QUE ESSE JUIZ FEZ NÃO TEM EXPLICAÇÃO", "O CHAT NÃO ACREDITOU NESSA JOGADA", "ELE AVISOU QUE IA DAR RUIM"). '
         'PROIBIDO começar narrando com verbo de relatório: REAGIU, COMENTOU, PERGUNTOU, FALOU, DISSE, COMEMOROU, ELOGIOU, ADMITIU, EXPLICOU. Nunca "streamer", "gamer", "jogador". '
         'Regras: português do Brasil, maiúsculas, de 4 a 9 palavras, frase COMPLETA (nunca terminar em artigo ou preposição), sem aspas, sem emoji, sem hashtag; '
-        'fiel ao trecho: não invente fato que não está na fala. Responda só o gancho.\n\n' + texto[:4000]}])
+        'fiel ao trecho: não invente fato que não está na fala. NUNCA palavrão, xingamento, droga, arma de verdade ou palavra sensível (o TikTok derruba o alcance): se a frase forte tem isso, use o caminho (2). Responda só o gancho.\n\n' + texto[:4000]}])
     txt = ''.join(b.text for b in r.content if getattr(b, 'type', '') == 'text')   # a resposta pode vir com bloco de raciocínio antes do texto
     g = next((l for l in txt.strip().splitlines() if l.strip()), '').strip().replace('"', '').replace('“', '').replace('”', '').upper()   # 07/11: veio texto extra numa 2ª linha; só a 1ª vale
     g = re.sub(r'^(O |A )?(STREAMER|GAMER|JOGADOR|JOGADORA)\s+', '', g)   # 
     g = g[:70]
+    if PROIBIDAS.search(g): return ''   # 18/11: palavra sensível no topo derruba o alcance (já deu 0 view); sem gancho, o corte é descartado
     if len(g.split()) < 4 or len(g.split()[-1].strip('.,!?…')) < 2: return ''   # 18/11: saiu 'AINDA T' e 'EU TENHO QUE TE CHA' (frase cortada): sem gancho, o corte é descartado
     return g
 
