@@ -19,6 +19,7 @@ CANAIS = {'alanzoka': 8.15, 'gaules': 4.31, 'nobru': 3.79, 'paulinholokobr': 3.7
 KICK = {'coringa': 7.27, 'jukes': 1.85, 'bistecone': 9.5, 'davyjones': 1.35}   # Kick (coringa e jukes saíram da Twitch); peso = tamanho do público dele
 # 
 CANAIS['paulinholokobr'] = 9.0
+FOCO = {'bistecone'}   # 18/11: "vamos focar nos cortes do bistecone, é o que mais está dando views"
 TESTE = os.environ.get('JOGO_RE')   # só para testar antes do lançamento (19/11) com outro jogo; tudo vai para gta/teste/
 # 
 SO_GTA = not TESTE
@@ -81,14 +82,24 @@ def vods(canal):
         time.sleep(3 + 5 * k)
     raise RuntimeError('Twitch não respondeu a lista de vídeos')
 
+def dur_m3u8(master):
+    try:
+        base = master.rsplit('/', 1)[0]; txt = urllib.request.urlopen(urllib.request.Request(master, headers={'User-Agent': 'Mozilla/5.0'}), timeout=30).read().decode()
+        pl = [l for l in txt.splitlines() if l and not l.startswith('#')][-1]
+        lst = urllib.request.urlopen(urllib.request.Request(pl if pl.startswith('http') else f'{base}/{pl}', headers={'User-Agent': 'Mozilla/5.0'}), timeout=30).read().decode()
+        return int(sum(float(l.split(':', 1)[1].split(',')[0]) for l in lst.splitlines() if l.startswith('#EXTINF')))
+    except Exception as e: print('duração do m3u8 falhou:', e, flush=True); return 0
+
 def vods_kick(canal):
     r = urllib.request.Request(f'https://kick.com/api/v2/channels/{canal}/videos', headers={'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'})
     out = []
     for v in json.load(urllib.request.urlopen(r, timeout=30))[:5]:
         uuid = (v.get('video') or {}).get('uuid')
         if not uuid: continue
+        dur = int((v.get('duration') or 0) / 1000)
+        if v.get('is_live') and v.get('source'): dur = dur_m3u8(v['source'])   # 18/11: live do Kick no ar já tem gravação (m3u8 crescendo); a duração vem da lista
         out.append({'id': 'k' + uuid, 'title': v.get('session_title') or '', 'createdAt': (v.get('created_at') or '').replace(' ', 'T') + 'Z',
-                    'lengthSeconds': int((v.get('duration') or 0) / 1000), 'status': 'RECORDING' if v.get('is_live') else 'RECORDED',
+                    'lengthSeconds': dur, 'status': 'RECORDING' if v.get('is_live') else 'RECORDED',
                     'game': {'name': ((v.get('categories') or [{}])[0] or {}).get('name', '')}, 'link': v.get('source') or f'https://kick.com/{canal}/videos/{uuid}'})   # 07/11: na nuvem o extrator do Kick dá NOT_FOUND; o m3u8 direto baixa
     return out
 
@@ -132,7 +143,7 @@ def candidatos(estado):
             # : live AINDA NO AR (Twitch) também é cortada,
             # voltando nela a cada rodada a partir de onde parou (estado['parciais'][vod] = segundo já olhado). Kick só depois que acaba.
             ao_vivo = v['status'] == 'RECORDING'
-            if ao_vivo and (canal in KICK or v.get('link')): continue
+            if ao_vivo and not v['lengthSeconds']: continue   # 18/11: Kick no ar também (gravação do m3u8); sem duração conhecida, espera
             if v['status'] not in ('RECORDED', 'RECORDING'): continue
             idade = (agora - datetime.datetime.fromisoformat(v['createdAt'].replace('Z', '+00:00'))).total_seconds() / 3600
             if idade > IDADE_MAX_H and not TESTE: continue
@@ -157,7 +168,9 @@ def candidatos(estado):
     peso = {**CANAIS, **KICK}
     # 
     fresco = lambda v: (lambda h: 1 if h < 24 else 0.7 if h < 48 else 0.5)((agora - datetime.datetime.fromisoformat(v['createdAt'].replace('Z', '+00:00'))).total_seconds() / 3600)
-    return sorted(out, key=lambda x: (x[2] != 'GTA 6', -peso.get(x[0], 0) * fresco(x[1])))   # GTA 6 sempre primeiro
+    out = sorted(out, key=lambda x: (x[2] != 'GTA 6', -peso.get(x[0], 0) * fresco(x[1])))   # GTA 6 sempre primeiro
+    foco = [x for x in out if x[0] in FOCO and x[2] == 'GTA 6']   # 18/11: Bistecone é o que mais dá view; com live dele, a rodada é só dele
+    return foco or out
 
 def busca_palavra():
     """09/11: corta os momentos em que a live fala uma palavra (ex.: Neymar). Entradas: PALAVRA (regex), VOD (id da Twitch), CANAL, JOGO_NOME, TAGS, N."""
@@ -237,7 +250,7 @@ if __name__ == '__main__':
     cortadas = 0; total_rodada = 0   # 17/11: 16 cortes levaram 53 min (o job tem 55): no máximo 12 por rodada
     for canal, v, jogo, tr, total in cand:
         if cortadas >= MAX_VODS: break
-        link = v.get('link') or f"https://www.twitch.tv/videos/{v['id']}"; n = max(1, min(8, total // (15 * 60 if v.get('ao_vivo') else 20 * 60)))   # 17/11: cortes de 30 s → ~1 a cada 20 min de jogo, até 8 por live
+        link = v.get('link') or f"https://www.twitch.tv/videos/{v['id']}"; n = max(1, min(8, total // ((7 if canal in FOCO else 15) * 60 if v.get('ao_vivo') else 20 * 60)))   # 17/11: cortes de 30 s → ~1 a cada 20 min de jogo, até 8 por live
         with tempfile.TemporaryDirectory() as T:
             # sobra de picos: os de tela parada são pulados. 07/11: VOD que não baixa (felps) não derruba a rodada; passa para a próxima live
             try: ps = C.picos_som(link, T, n * 3, faixas=tr)
