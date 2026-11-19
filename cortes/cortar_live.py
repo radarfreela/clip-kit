@@ -82,9 +82,12 @@ def e_gameplay_gta6(arq):
     """17/11: live com categoria 'Just Chatting' e GTA 6 só no título pode ser conversa SOBRE o jogo. A IA olha 3 quadros do corte e diz se é GTA 6 sendo jogado."""
     import anthropic, base64
     dur = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', arq], capture_output=True, text=True).stdout.strip() or 30)
-    imgs = []
+    imgs, cru = [], arq[:-4] + '-cru.mp4'
+    # 19/11: a tela nova (câmera em cima, jogo com zoom) corta o minimapa; a IA olha a live original, horizontal e inteira
+    vf = 'scale=960:-2' if os.path.exists(cru) else 'crop=iw:ih*0.32:0:ih*0.34,scale=960:-2'
+    if os.path.exists(cru): arq = cru
     for k, t in enumerate((dur * 0.2, dur * 0.5, dur * 0.8)):
-        q = f'{arq}.q{k}.jpg'; sh('ffmpeg', '-v', 'error', '-y', '-ss', f'{t:.1f}', '-i', arq, '-frames:v', '1', '-vf', 'crop=iw:ih*0.32:0:ih*0.34,scale=960:-2', '-q:v', '4', q)   # 18/11: só a faixa do jogo, maior (o minimapa ficava ilegível)
+        q = f'{arq}.q{k}.jpg'; sh('ffmpeg', '-v', 'error', '-y', '-ss', f'{t:.1f}', '-i', arq, '-frames:v', '1', '-vf', vf, '-q:v', '4', q)
         imgs.append({'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': base64.b64encode(open(q, 'rb').read()).decode()}})
     try:
         r = anthropic.Anthropic(timeout=60, max_retries=1).messages.create(model='claude-sonnet-5-5', max_tokens=300, messages=[{'role': 'user', 'content': imgs + [{'type': 'text', 'text':
