@@ -137,7 +137,7 @@ def tela(canal, topo=''):
     if not c: return f"[0:v]crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale={W}:{H}:flags=lanczos,{topo}format=yuv420p[v]"
     x, y, w, h = c   # 19/11 (dele): jogo em tela cheia + a câmera num quadradinho no topo
     return (f"[0:v]split[a][b];[a]crop=iw*{w}:ih*{h}:iw*{x}:ih*{y},scale=480:-2:flags=lanczos,pad=iw+8:ih+8:4:4:white[c];"
-            f"[b]crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale={W}:{H}:flags=lanczos[j];[j][c]overlay=(W-w)/2:170,{topo}format=yuv420p[v]")
+            f"[b]crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale={W}:{H}:flags=lanczos[j];[j][c]overlay=W-w-40:170,{topo}format=yuv420p[v]")
 
 def cortar(link, a, nome, modelo, T, destino, jogo='GTA 6'):
     """baixa [a, a+DUR] da live, legenda palavra por palavra, gancho no topo, envia ao R2 em <destino>/<nome>.mp4; devolve (gancho, fala)."""
