@@ -8,6 +8,7 @@ os.environ.setdefault('R2_CRED_FILE', os.path.expanduser('~/.r2cred'))
 FONTE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'fonts', 'Anton-Regular.ttf')
 # : começavam 50 s antes do lance, gente passava o dedo.
 # Agora 30 s começando perto do lance: no pico de VOLUME (grito/risada do streamer) o corte começa 10 s antes; no pico de CHAT, 25 s (o chat reage ~10–20 s depois)
+SEM_TEXTO = True
 W, H, DUR, ANTES, ANTES_SOM = 1080, 1920, 60, 25, 20   # 18/11: formato novo = 60 s, começa 20 s antes do lance, sem legenda palavra por palavra
 def sh(*a, **k): return subprocess.run([str(x) for x in a], check=True, **k)
 
@@ -146,7 +147,7 @@ def cortar(link, a, nome, modelo, T, destino, jogo='GTA 6'):
         else: l = (l + ' ' + w).strip()
     # 07/11: o ffmpeg 8 desenhava a quebra de linha como um quadradinho; agora um drawtext por linha
     topo = ''
-    for k, t in enumerate((lin + [l]) if g else []):
+    for k, t in enumerate([] if SEM_TEXTO else (lin + [l]) if g else []):   # 18/11: teste sem texto nenhum no vídeo; o gancho só serve de título na página
         open(f'{T}/{nome}-g{k}.txt', 'w').write(t)
         topo += f"drawtext=fontfile='{FONTE}':textfile='{T}/{nome}-g{k}.txt':fontsize=74:fontcolor=white:borderw=6:bordercolor=black:y_align=font:x=(w-tw)/2:y={300 + k * 92},"
     sh('ffmpeg', '-v', 'error', '-y', '-i', f'{T}/{nome}-cru.mp4', '-filter_complex',
