@@ -9,6 +9,9 @@ FONTE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'fonts', 
 # : começavam 50 s antes do lance, gente passava o dedo.
 # Agora 30 s começando perto do lance: no pico de VOLUME (grito/risada do streamer) o corte começa 10 s antes; no pico de CHAT, 25 s (o chat reage ~10–20 s depois)
 SEM_TEXTO = True
+# 19/11: tela cheia na vertical (antes: live deitada no meio com fundo borrado). Câmera do streamer em cima (1080x640), jogo com zoom embaixo (1080x1280).
+# Posição da câmera na live, em fração da tela (x, y, largura, altura); quem não tem câmera medida sai só com o jogo em tela cheia.
+CAM = {'bistecone': (0.7556, 0.151, 0.2444, 0.2566)}
 W, H, DUR, ANTES, ANTES_SOM = 1080, 1920, 60, 25, 20   # 18/11: formato novo = 60 s, começa 20 s antes do lance, sem legenda palavra por palavra
 def sh(*a, **k): return subprocess.run([str(x) for x in a], check=True, **k)
 
@@ -126,11 +129,18 @@ def parado(arq):
     if len(ini) > len(fim): seg += DUR - ini[-1]   # congelado até o fim do trecho
     return seg / DUR
 
+def tela(canal, topo=''):
+    c = CAM.get(canal)
+    if not c: return f"[0:v]crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale={W}:{H}:flags=lanczos,{topo}format=yuv420p[v]"
+    x, y, w, h = c
+    return (f"[0:v]split[a][b];[a]crop=iw*{w}:ih*{h}:iw*{x}:ih*{y},scale={W}:640:flags=lanczos[c];"
+            f"[b]crop=ih*0.844:ih:(iw-ih*0.844)/2:0,scale={W}:1280:flags=lanczos[j];[c][j]vstack,{topo}format=yuv420p[v]")
+
 def cortar(link, a, nome, modelo, T, destino, jogo='GTA 6'):
     """baixa [a, a+DUR] da live, legenda palavra por palavra, gancho no topo, envia ao R2 em <destino>/<nome>.mp4; devolve (gancho, fala)."""
     # 07/11: 1080p + recodificar no download levava ~10 min por corte; agora 720p, 10 s de sobra antes e o corte exato no ffmpeg
     a0 = max(0, a - 10)
-    sh('yt-dlp', '-q', '--no-warnings', '-N', '8', '-f', 'bv*[height<=720]+ba/b[height<=720]/b', '--download-sections', f'*{a0}-{a + DUR + 2}', '--merge-output-format', 'mp4', '-o', f'{T}/{nome}-bruto.mp4', link, timeout=600)
+    sh('yt-dlp', '-q', '--no-warnings', '-N', '8', '-f', 'bv*[height<=1080]+ba/b[height<=1080]/b', '--download-sections', f'*{a0}-{a + DUR + 2}', '--merge-output-format', 'mp4', '-o', f'{T}/{nome}-bruto.mp4', link, timeout=600)
     sh('ffmpeg', '-v', 'error', '-y', '-ss', f'{a - a0}', '-i', f'{T}/{nome}-bruto.mp4', '-t', DUR, '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', '-c:a', 'aac', '-b:a', '192k', f'{T}/{nome}-cru.mp4', timeout=300)
     if parado(f'{T}/{nome}-cru.mp4') > 0.4: raise Parado(nome)   # 
     import numpy as np   # 07/11: o PyAV novo quebrou a leitura do faster-whisper; o áudio entra já decodificado pelo ffmpeg
@@ -151,9 +161,8 @@ def cortar(link, a, nome, modelo, T, destino, jogo='GTA 6'):
         open(f'{T}/{nome}-g{k}.txt', 'w').write(t)
         topo += f"drawtext=fontfile='{FONTE}':textfile='{T}/{nome}-g{k}.txt':fontsize=74:fontcolor=white:borderw=6:bordercolor=black:y_align=font:x=(w-tw)/2:y={300 + k * 92},"
     sh('ffmpeg', '-v', 'error', '-y', '-i', f'{T}/{nome}-cru.mp4', '-filter_complex',
-       f"[0:v]split[a][b];[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=8:2,eq=brightness=-0.15,scale={W}:{H}[f];"
-       f"[b]scale={W}:-2[j];[f][j]overlay=0:(H-h)/2,{topo}format=yuv420p[v]",
-       '-map', '[v]', '-map', '0:a?', '-t', DUR, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', f'{T}/{nome}.mp4', timeout=600)
+       tela(nome.split('-')[0], topo),
+       '-map', '[v]', '-map', '0:a?', '-t', DUR, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '19', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', f'{T}/{nome}.mp4', timeout=600)
     sh('sh', R2, 'put', f'{T}/{nome}.mp4', f'{destino}/{nome}.mp4')
     return g, ' '.join(fala)
 
